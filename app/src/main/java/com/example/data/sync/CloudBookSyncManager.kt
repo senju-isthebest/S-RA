@@ -64,17 +64,17 @@ class CloudBookSyncManager(
             "image/webp"
         )
         if (contentType !in allowedTypes) return Result.failure(IllegalArgumentException("Unsupported file type."))
-        val ref = sourceRef(userId, bookId)
         val safeName = originalFileName.take(200)
-        val hash = sha256(file)
-        val metadata = com.google.firebase.storage.StorageMetadata.Builder()
-            .setContentType(contentType.take(120).ifBlank { "application/octet-stream" })
-            .setCustomMetadata("ownerUid", userId)
-            .setCustomMetadata("bookId", bookId)
-            .setCustomMetadata("originalFileName", safeName)
-            .setCustomMetadata("sha256", hash)
-            .build()
         return try {
+            val ref = sourceRef(userId, bookId)
+            val hash = sha256(file)
+            val metadata = com.google.firebase.storage.StorageMetadata.Builder()
+                .setContentType(contentType.take(120).ifBlank { "application/octet-stream" })
+                .setCustomMetadata("ownerUid", userId)
+                .setCustomMetadata("bookId", bookId)
+                .setCustomMetadata("originalFileName", safeName)
+                .setCustomMetadata("sha256", hash)
+                .build()
             bookRef(userId, bookId).update(mapOf("syncStatus" to "UPLOADING", "updatedAt" to FieldValue.serverTimestamp())).await()
             val uploadTask = ref.putFile(Uri.fromFile(file), metadata)
             uploadTask.addOnProgressListener { snapshot ->
@@ -136,9 +136,9 @@ class CloudBookSyncManager(
         onProgress: (completedPages: Int, totalPages: Int) -> Unit = { _, _ -> }
     ): Result<Int> {
         val userId = try { uid() } catch (error: Exception) { return Result.failure(error) }
-        val pagesRef = bookRef(userId, bookId).collection("pages")
         return try {
             validateBookId(bookId)
+            val pagesRef = bookRef(userId, bookId).collection("pages")
             require(pages.size <= 5_000) { "Page count exceeds the supported limit." }
             require(pages.map { it.pageNumber }.distinct().size == pages.size) { "Page numbers must be unique." }
             require(pages.sumOf { it.text.length.toLong() } <= MAX_TOTAL_TEXT_CHARS) { "Extracted text exceeds the cloud sync limit." }
