@@ -527,6 +527,10 @@ class SoraViewModel(
                 _bannerMessage.value = "No chapters are available for full-book generation."
                 return@launch
             }
+            val chaptersToProcess = if (forceRegenerate) chapters.map { it.copy(
+                intelligenceGenerated = false, questionsGenerated = false, flashcardsGenerated = false,
+                generationStatus = "PENDING", generationError = ""
+            ) } else chapters
             if (forceRegenerate) {
                 chapters.forEach { chapter ->
                     repository.updateChapterFields(book.id, chapter.id, mapOf(
@@ -542,7 +546,7 @@ class SoraViewModel(
             var completedChapters = 0
             var failedChapters = 0
             try {
-                chapters.forEachIndexed { index, chapter ->
+                chaptersToProcess.forEachIndexed { index, chapter ->
                     _ingestionProgress.value = IngestionProgressState(
                         true, index, chapters.size,
                         "Chapter " + chapter.chapterNumber + "/" + chapters.size + ": " + chapter.title
@@ -587,7 +591,7 @@ class SoraViewModel(
         ))
 
         if (!intelligenceDone) {
-            _ingestionProgress.value = _ingestionProgress.value.copy(label = "Generating Chapter " + chapter.chapterNumber + " intelligence...")
+            _ingestionProgress.value = _ingestionProgress.value.copy(statusLabel = "Generating Chapter " + chapter.chapterNumber + " intelligence...")
             val result = aiService.generateChapterIntelligence(book.id, chapter, pages, difficultyLevel)
             result.onSuccess { (enrichedChapter, glossary) ->
                 val generatedGlossary = glossary.mapIndexed { index, entry ->
