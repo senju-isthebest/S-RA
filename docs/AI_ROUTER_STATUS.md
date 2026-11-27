@@ -24,8 +24,9 @@
 
 ## Build-time fallback configuration
 - Set `OLLAMA_BASE_URL` to a trusted Ollama endpoint.
-- Set `OLLAMA_MODEL` to an installed model name; defaults to `qwen2.5:7b`.
-- You can provide Gradle properties (`-POLLAMA_BASE_URL=...`, `-POLLAMA_MODEL=...`) or environment variables.
+- Set `OLLAMA_MODEL` to an installed text model; defaults to `qwen2.5:7b`.
+- Set `OLLAMA_VISION_MODEL` to an installed image-capable model to enable OCR fallback; blank disables OCR fallback.
+- You can provide Gradle properties (`-POLLAMA_BASE_URL=...`, `-POLLAMA_MODEL=...`, `-POLLAMA_VISION_MODEL=...`) or environment variables.
 - Leave the URL blank for Gemini-only behavior.
 - Do not put cloud API keys or credentials in these values.
 
