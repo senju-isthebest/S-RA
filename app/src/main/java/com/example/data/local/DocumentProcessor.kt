@@ -47,6 +47,12 @@ class DocumentProcessor(
     fun getLocalFile(localBookId: String, fileName: String): File =
         File(bookDir(localBookId), fileName)
 
+    fun deleteLocalBook(localBookId: String): Boolean {
+        require(localBookId.matches(Regex("^[A-Za-z0-9_-]{1,128}$"))) { "Invalid local book ID." }
+        val dir = bookDir(localBookId)
+        return !dir.exists() || dir.deleteRecursively()
+    }
+
     fun savePages(localBookId: String, pages: List<BookPageContent>) {
         val arr = JSONArray()
         pages.forEach { p ->
