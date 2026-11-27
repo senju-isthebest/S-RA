@@ -29,6 +29,7 @@ import org.json.JSONObject
 
 private const val TAG = "SoraAiService"
 private const val AI_TIMEOUT_MS = 60_000L
+private const val TEXT_ROUTER_TIMEOUT_MS = 170_000L
 
 data class DetectedBookStructure(
     val title: String,
@@ -651,7 +652,7 @@ class SoraAiService(
                 Perform action: $action (e.g., Simplify, Explain, Key Definitions, Worked Examples, Translate to Spanish/Arabic/French if requested, Practice Questions, or Concise Summary).
                 Keep textbook terminology intact and clearly separate textbook facts from supplementary explanation.
             """.trimIndent()
-            val out = withTimeout(AI_TIMEOUT_MS) {
+            val out = withTimeout(TEXT_ROUTER_TIMEOUT_MS) {
                 textRouter.generate(AiTextRequest(prompt = prompt, taskTag = "reading_assistant")).text.trim()
             }
             if (out.isBlank()) Result.failure(IllegalStateException("Empty assistant response."))
@@ -709,7 +710,7 @@ class SoraAiService(
                 Solve the following academic/mathematical/scientific equation or word problem with clear step-by-step reasoning, showing intermediate steps, units, and verification of the final answer:
                 $equationInput
             """.trimIndent()
-            val text = withTimeout(AI_TIMEOUT_MS) {
+            val text = withTimeout(TEXT_ROUTER_TIMEOUT_MS) {
                 textRouter.generate(AiTextRequest(prompt = prompt, taskTag = "equation_solver")).text.trim()
             }
             if (text.isBlank()) Result.failure(IllegalStateException("Empty solution returned."))
@@ -738,7 +739,7 @@ class SoraAiService(
                 Use clean markdown tables or bulleted prerequisite checklists grounded in these pages:
                 $snippet
             """.trimIndent()
-            val text = withTimeout(AI_TIMEOUT_MS) {
+            val text = withTimeout(TEXT_ROUTER_TIMEOUT_MS) {
                 textRouter.generate(AiTextRequest(prompt = prompt, taskTag = "chapter_analysis")).text.trim()
             }
             if (text.isBlank()) Result.failure(IllegalStateException("Empty analysis returned."))
