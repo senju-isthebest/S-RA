@@ -47,7 +47,7 @@ class DocumentProcessor(
     }
 
     private fun safeFileName(fileName: String): String {
-        val safe = fileName.substringAfterLast("/").substringAfterLast("\\\\").trim().take(200)
+        val safe = fileName.substringAfterLast("/").substringAfterLast(92.toChar()).trim().take(200)
         require(safe.isNotBlank() && safe != "." && safe != "..") { "Invalid file name." }
         return safe
     }
