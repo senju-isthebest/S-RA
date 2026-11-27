@@ -149,7 +149,6 @@ dependencies {
   testImplementation(libs.junit)
   testImplementation("com.squareup.okhttp3:mockwebserver:4.10.0")
   testImplementation(libs.kotlinx.coroutines.test)
-  testImplementation(libs.robolectric)
   androidTestImplementation(platform(libs.androidx.compose.bom))
   androidTestImplementation(libs.androidx.compose.ui.test.junit4)
   androidTestImplementation(libs.androidx.espresso.core)
