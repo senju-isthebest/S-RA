@@ -15,6 +15,7 @@ import com.example.data.model.BookPageContent
 import com.example.data.model.Chapter
 import com.example.data.model.CitationEntry
 import com.example.data.model.ExamPreset
+import com.example.data.exam.ExamEngine
 import com.example.data.model.ExamRecord
 import com.example.data.model.Flashcard
 import com.example.data.model.FocusSession
@@ -901,27 +902,75 @@ class SoraViewModel(
         showExplanationEach: Boolean,
         onCreated: (String) -> Unit
     ) {
-        if (selectedQuestions.isEmpty()) {
-            _bannerMessage.value = "No matching questions available for this exam configuration."
+        val validQuestions = selectedQuestions
+            .filter { it.id.isNotBlank() && it.questionText.isNotBlank() && it.correctAnswer.isNotBlank() && it.marks in 1L..100L }
+            .filter { it.questionType != "MCQ" || it.options.size >= 2 }
+            .distinctBy { it.id }
+            .take(200)
+        if (validQuestions.isEmpty()) {
+            _bannerMessage.value = "No valid questions available for this exam configuration."
             return
         }
         viewModelScope.launch {
-            val totalMarks = selectedQuestions.sumOf { it.marks }.coerceAtLeast(1L)
+            val now = System.currentTimeMillis()
+            val safeDuration = durationMinutes.coerceIn(1, 300)
+            val totalMarks = validQuestions.sumOf { it.marks }.coerceAtLeast(1L)
             val exam = ExamRecord(
                 title = title.ifBlank { preset.label },
                 preset = preset.name,
-                bookIds = selectedQuestions.map { it.bookId }.distinct().take(20),
-                questionIds = selectedQuestions.map { it.id }.take(200),
-                durationMinutes = durationMinutes.toLong(),
+                bookIds = validQuestions.map { it.bookId }.distinct().take(20),
+                questionIds = validQuestions.map { it.id },
+                durationMinutes = safeDuration.toLong(),
                 totalMarks = totalMarks,
                 allowRevisit = allowRevisit,
                 showExplanationEach = showExplanationEach,
                 status = "IN_PROGRESS",
-                unansweredCount = selectedQuestions.size.toLong()
+                unansweredCount = validQuestions.size.toLong(),
+                startedAtMillis = now,
+                deadlineAtMillis = now + safeDuration * 60_000L
             )
             repository.createExam(exam)
                 .onSuccess { id -> onCreated(id) }
                 .onFailure { _bannerMessage.value = it.localizedMessage ?: "Could not start exam." }
+        }
+    }
+
+    fun ensureExamClock(exam: ExamRecord) {
+        if (exam.id.isBlank() || exam.deadlineAtMillis > 0L) return
+        val startedAt = exam.startedAtMillis.takeIf { it > 0L }
+            ?: exam.createdAt?.toDate()?.time
+            ?: System.currentTimeMillis()
+        val deadline = startedAt + exam.durationMinutes.coerceIn(1L, 300L) * 60_000L
+        viewModelScope.launch {
+            repository.updateExamProgress(exam.id, mapOf(
+                "startedAtMillis" to startedAt,
+                "deadlineAtMillis" to deadline
+            ))
+        }
+    }
+
+    fun saveExamProgress(
+        exam: ExamRecord,
+        answersByQuestionId: Map<String, String>,
+        flaggedIds: Set<String>,
+        currentQuestionIndex: Int,
+        timeSpentSeconds: Int
+    ) {
+        if (exam.id.isBlank() || exam.status == "SUBMITTED") return
+        val answers = JSONObject()
+        answersByQuestionId.filterKeys { it.isNotBlank() }.forEach { (id, answer) ->
+            answers.put(id, answer.take(2500))
+        }
+        viewModelScope.launch {
+            repository.updateExamProgress(exam.id, mapOf(
+                "status" to "IN_PROGRESS",
+                "answersJson" to answers.toString().take(50000),
+                "flaggedQuestionIds" to flaggedIds.filter { it.isNotBlank() }.take(200),
+                "currentQuestionIndex" to currentQuestionIndex.coerceIn(0, 199),
+                "timeSpentSeconds" to timeSpentSeconds.coerceIn(0, 36000).toLong()
+            )).onFailure {
+                _bannerMessage.value = it.localizedMessage ?: "Could not save exam progress."
+            }
         }
     }
 
@@ -932,94 +981,81 @@ class SoraViewModel(
         flaggedIds: Set<String>,
         timeSpentSeconds: Int
     ) {
+        if (exam.id.isBlank() || exam.status == "SUBMITTED") return
         viewModelScope.launch {
             var score = 0L
             var correct = 0L
             var incorrect = 0L
+            var partial = 0L
             var unanswered = 0L
-            val chapterMap = mutableMapOf<Long, Pair<Int, Int>>() // ch -> (correct, total)
-            val difficultyMap = mutableMapOf<String, Pair<Int, Int>>()
+            val chapterMap = mutableMapOf<Long, Pair<Long, Long>>()
+            val difficultyMap = mutableMapOf<String, Pair<Long, Long>>()
 
-            examQuestions.forEach { q ->
-                val userAns = answersByQuestionId[q.id]?.trim().orEmpty()
-                val chStats = chapterMap[q.chapterNumber] ?: (0 to 0)
-                val diffStats = difficultyMap[q.difficulty] ?: (0 to 0)
-                if (userAns.isBlank()) {
+            examQuestions.forEach { question ->
+                val answer = answersByQuestionId[question.id].orEmpty().trim()
+                val previousChapter = chapterMap[question.chapterNumber] ?: (0L to 0L)
+                val previousDifficulty = difficultyMap[question.difficulty] ?: (0L to 0L)
+                if (answer.isBlank()) {
                     unanswered++
-                    chapterMap[q.chapterNumber] = chStats.first to (chStats.second + 1)
-                    difficultyMap[q.difficulty] = diffStats.first to (diffStats.second + 1)
+                    chapterMap[question.chapterNumber] = previousChapter.first to (previousChapter.second + question.marks)
+                    difficultyMap[question.difficulty] = previousDifficulty.first to (previousDifficulty.second + question.marks)
                 } else {
-                    val isRight = evaluateAnswerMatch(q, userAns)
-                    repository.recordQuestionAttempt(q, isRight)
-                    if (isRight) {
-                        correct++
-                        score += q.marks
-                        chapterMap[q.chapterNumber] = (chStats.first + 1) to (chStats.second + 1)
-                        difficultyMap[q.difficulty] = (diffStats.first + 1) to (diffStats.second + 1)
-                    } else {
-                        incorrect++
-                        chapterMap[q.chapterNumber] = chStats.first to (chStats.second + 1)
-                        difficultyMap[q.difficulty] = diffStats.first to (diffStats.second + 1)
-                    }
+                    val grade = ExamEngine.grade(question, answer)
+                    score += grade.earnedMarks
+                    if (grade.isFullyCorrect) correct++ else incorrect++
+                    if (grade.isPartiallyCorrect) partial++
+                    chapterMap[question.chapterNumber] = (previousChapter.first + grade.earnedMarks) to (previousChapter.second + question.marks)
+                    difficultyMap[question.difficulty] = (previousDifficulty.first + grade.earnedMarks) to (previousDifficulty.second + question.marks)
+                    repository.recordQuestionAttempt(question, grade.isFullyCorrect)
                 }
             }
 
-            val pct = if (exam.totalMarks > 0L) (score.toDouble() / exam.totalMarks.toDouble()) * 100.0 else 0.0
+            val pct = if (exam.totalMarks > 0L) {
+                (score.toDouble() / exam.totalMarks.toDouble() * 100.0).coerceIn(0.0, 100.0)
+            } else 0.0
             val analyticsJson = JSONObject().apply {
-                val chObj = JSONObject()
-                chapterMap.forEach { (ch, pair) -> chObj.put("Ch. $ch", "${pair.first}/${pair.second}") }
-                val diffObj = JSONObject()
-                difficultyMap.forEach { (d, pair) -> diffObj.put(d, "${pair.first}/${pair.second}") }
-                put("byChapter", chObj)
-                put("byDifficulty", diffObj)
+                val byChapter = JSONObject()
+                chapterMap.forEach { (chapter, marks) -> byChapter.put("Ch. $chapter", "${marks.first}/${marks.second}") }
+                val byDifficulty = JSONObject()
+                difficultyMap.forEach { (difficulty, marks) -> byDifficulty.put(difficulty, "${marks.first}/${marks.second}") }
+                put("byChapter", byChapter)
+                put("byDifficulty", byDifficulty)
+                put("partialCreditCount", partial)
+            }.toString()
+            val weakChapters = chapterMap.entries
+                .filter { it.value.second > 0L && it.value.first.toDouble() / it.value.second < 0.7 }
+                .map { "Chapter ${it.key}" }
+            val recommendation = if (weakChapters.isEmpty()) {
+                "Strong performance across tested chapters. Continue spaced-repetition flashcard reviews."
+            } else {
+                "Focus revision on ${weakChapters.joinToString(", ")} and review missed items in your Mistake Notebook."
+            }
+            val answersJson = JSONObject().apply {
+                answersByQuestionId.forEach { (id, answer) -> put(id, answer.take(2500)) }
             }.toString()
 
-            val weakCh = chapterMap.entries
-                .filter { it.value.second > 0 && (it.value.first.toDouble() / it.value.second) < 0.7 }
-                .map { "Chapter ${it.key}" }
-            val recommendation = if (weakCh.isEmpty()) {
-                "Strong mastery across all tested chapters. Continue spaced-repetition flashcard reviews."
-            } else {
-                "Focus revision on ${weakCh.joinToString(", ")} and review missed items in your Mistake Notebook."
+            repository.updateExamProgress(exam.id, mapOf(
+                "status" to "SUBMITTED",
+                "answersJson" to answersJson.take(50000),
+                "flaggedQuestionIds" to flaggedIds.filter { it.isNotBlank() }.take(200),
+                "score" to score.coerceIn(0L, exam.totalMarks),
+                "percentage" to pct,
+                "correctCount" to correct,
+                "incorrectCount" to incorrect,
+                "partiallyCorrectCount" to partial,
+                "unansweredCount" to unanswered,
+                "timeSpentSeconds" to timeSpentSeconds.coerceIn(0, 36000).toLong(),
+                "analyticsJson" to analyticsJson.take(20000),
+                "recommendedRevision" to recommendation.take(3000)
+            )).onFailure {
+                _bannerMessage.value = it.localizedMessage ?: "Could not submit exam. Your answers remain saved."
+                return@launch
             }
 
-            val answersJsonObj = JSONObject()
-            answersByQuestionId.forEach { (k, v) -> answersJsonObj.put(k, v) }
-
-            repository.updateExamProgress(
-                exam.id,
-                mapOf(
-                    "status" to "SUBMITTED",
-                    "answersJson" to answersJsonObj.toString(),
-                    "flaggedQuestionIds" to flaggedIds.toList().take(200),
-                    "score" to score,
-                    "percentage" to pct,
-                    "correctCount" to correct,
-                    "incorrectCount" to incorrect,
-                    "unansweredCount" to unanswered,
-                    "timeSpentSeconds" to timeSpentSeconds.toLong(),
-                    "analyticsJson" to analyticsJson,
-                    "recommendedRevision" to recommendation
-                )
-            )
-            examQuestions.map { it.bookId to it.chapterNumber }.distinct().forEach { (bId, ch) ->
-                recalculateBookAndChapterMastery(bId, ch)
+            examQuestions.map { it.bookId to it.chapterNumber }.distinct().forEach { (bookId, chapter) ->
+                recalculateBookAndChapterMastery(bookId, chapter)
             }
         }
-    }
-
-    private fun evaluateAnswerMatch(q: QuestionItem, userAns: String): Boolean {
-        val target = q.correctAnswer.trim().lowercase()
-        val given = userAns.trim().lowercase()
-        if (target == given) return true
-        if (q.questionType in listOf("MCQ", "TRUE_FALSE", "FILL_BLANK", "CALCULATION")) {
-            return given == target
-        }
-        // For open-ended short answers, check high keyword overlap
-        val keywords = target.split(Regex("\\W+")).filter { it.length > 3 }.toSet()
-        if (keywords.isEmpty()) return given.contains(target)
-        val hits = keywords.count { given.contains(it) }
-        return hits.toDouble() / keywords.size >= 0.5
     }
 
     private suspend fun recalculateBookAndChapterMastery(bookId: String, chapterNumber: Long) {
