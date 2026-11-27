@@ -46,7 +46,7 @@ class OllamaTextProvider(
         if (normalized.startsWith("10.") || normalized.startsWith("192.168.")) return true
         if (normalized.startsWith("172.")) {
             val second = normalized.substringAfter("172.").substringBefore(".").toIntOrNull()
-            if (second in 16..31) return true
+            if (second != null && second in 16..31) return true
         }
         return false
     }
