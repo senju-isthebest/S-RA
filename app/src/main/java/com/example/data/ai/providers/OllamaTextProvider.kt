@@ -23,13 +23,17 @@ class OllamaTextProvider(
     private val client: OkHttpClient = defaultClient()
 ) : AiTextProvider {
     override val providerId: String = "ollama"
+    private val endpointBaseUrl = baseUrl.trim().trimEnd('/')
 
     init {
         require(modelId.isNotBlank()) { "Ollama model name is required." }
-        val parsed = baseUrl.trim().toHttpUrlOrNull()
+        val parsed = endpointBaseUrl.toHttpUrlOrNull()
             ?: throw IllegalArgumentException("Ollama endpoint must be a valid HTTP(S) URL.")
         require(parsed.username.isBlank() && parsed.password.isBlank()) {
             "Credentials must not be embedded in the Ollama endpoint URL."
+        }
+        require(parsed.query == null && parsed.fragment == null) {
+            "Ollama endpoint must not contain a query string or fragment."
         }
         require(parsed.scheme == "https" || isPrivateHttpHost(parsed.host)) {
             "HTTP is allowed only for localhost or private-network Ollama endpoints. Use HTTPS for remote hosts."
@@ -62,7 +66,7 @@ class OllamaTextProvider(
                 .put("options", JSONObject().put("temperature", request.temperature))
             request.maxTokens?.let { payload.getJSONObject("options").put("num_predict", it) }
 
-            val url = baseUrl.trimEnd('/') + "/api/generate"
+            val url = endpointBaseUrl + "/api/generate"
             val httpRequest = Request.Builder()
                 .url(url)
                 .post(payload.toString().toRequestBody("application/json".toMediaType()))
