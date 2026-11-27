@@ -41,11 +41,19 @@ class DocumentProcessor(
     private val context: Context,
     private val aiService: SoraAiService
 ) {
-    private fun bookDir(localBookId: String): File =
-        File(context.filesDir, "books/$localBookId").apply { mkdirs() }
+    private fun bookDir(localBookId: String): File {
+        require(localBookId.matches(Regex("^[A-Za-z0-9_-]{1,128}$"))) { "Invalid local book ID." }
+        return File(context.filesDir, "books/$localBookId").apply { mkdirs() }
+    }
+
+    private fun safeFileName(fileName: String): String {
+        val safe = fileName.substringAfterLast("/").substringAfterLast("\\\\").trim().take(200)
+        require(safe.isNotBlank() && safe != "." && safe != "..") { "Invalid file name." }
+        return safe
+    }
 
     fun getLocalFile(localBookId: String, fileName: String): File =
-        File(bookDir(localBookId), fileName)
+        File(bookDir(localBookId), safeFileName(fileName))
 
     fun deleteLocalBook(localBookId: String): Boolean {
         require(localBookId.matches(Regex("^[A-Za-z0-9_-]{1,128}$"))) { "Invalid local book ID." }
