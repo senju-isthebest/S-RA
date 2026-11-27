@@ -82,7 +82,9 @@ class SoraAiService(
         primaryCall: suspend () -> String
     ): String {
         try {
-            return withTimeout(AI_TIMEOUT_MS) { primaryCall() }
+            val primaryText = withTimeout(AI_TIMEOUT_MS) { primaryCall() }
+            JSONObject(primaryText) // Reject malformed structured output before returning it.
+            return primaryText
         } catch (timeout: TimeoutCancellationException) {
             if (ollamaBaseUrl.isBlank()) throw timeout
             Log.w(TAG, "$taskTag primary provider timed out; trying configured Ollama fallback.")
@@ -90,8 +92,9 @@ class SoraAiService(
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (failure: Exception) {
-            if (ollamaBaseUrl.isBlank() || !isTransientAiFailure(failure)) throw failure
-            Log.w(TAG, "$taskTag primary provider failed transiently; trying configured Ollama fallback.")
+            val invalidStructuredOutput = failure is org.json.JSONException
+            if (ollamaBaseUrl.isBlank() || (!isTransientAiFailure(failure) && !invalidStructuredOutput)) throw failure
+            Log.w(TAG, "$taskTag primary provider failed; trying configured Ollama fallback.")
             return generateOllamaJsonFallback(prompt, taskTag)
         }
     }
@@ -108,13 +111,28 @@ class SoraAiService(
         }
         val jsonPrompt = prompt + "\n\n" + schemaGuidance + "\nReturn valid JSON only. Do not wrap it in markdown fences."
         return withTimeout(110_000L) {
-            provider.generate(
+            val response = provider.generate(
                 AiTextRequest(
                     prompt = jsonPrompt,
                     taskTag = taskTag,
                     responseFormat = com.example.data.ai.providers.AiResponseFormat.JSON
                 )
             ).text
+            try {
+                JSONObject(response)
+                response
+            } catch (malformed: org.json.JSONException) {
+                val repairPrompt = "Repair the following into a valid JSON object matching the same fields. Return JSON only.\n\n$response"
+                val repaired = provider.generate(
+                    AiTextRequest(
+                        prompt = repairPrompt,
+                        taskTag = "${taskTag}_json_repair",
+                        responseFormat = com.example.data.ai.providers.AiResponseFormat.JSON
+                    )
+                ).text
+                JSONObject(repaired)
+                repaired
+            }
         }
     }
 
