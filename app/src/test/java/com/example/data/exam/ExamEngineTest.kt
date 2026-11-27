@@ -27,6 +27,14 @@ class ExamEngineTest {
         assertFalse(grade.isPartiallyCorrect)
     }
 
+    @Test fun oneMarkQuestionDoesNotTurnPartialOverlapIntoFullCredit() {
+        val q = QuestionItem(questionType = "SHORT_ANSWER", correctAnswer = "mitochondria produces cellular energy", marks = 1)
+        val grade = ExamEngine.grade(q, "mitochondria")
+        assertEquals(0L, grade.earnedMarks)
+        assertFalse(grade.isFullyCorrect)
+        assertFalse(grade.isPartiallyCorrect)
+    }
+
     @Test fun timerNeverReturnsNegativeAndRoundsUp() {
         assertEquals(2, ExamEngine.remainingSeconds(2_001L, 1_000L))
         assertEquals(0, ExamEngine.remainingSeconds(999L, 1_000L))
