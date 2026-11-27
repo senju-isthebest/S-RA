@@ -244,6 +244,55 @@ class AiProviderRouterTest {
         }
     }
 
+
+    @Test
+    fun ollamaClassifiesHttpFailuresWithoutLosingFallbackSemantics() = runBlocking {
+        val server = MockWebServer()
+        server.enqueue(MockResponse().setResponseCode(401).setBody("unauthorized"))
+        server.enqueue(MockResponse().setResponseCode(400).setBody("bad request"))
+        server.enqueue(MockResponse().setResponseCode(503).setBody("unavailable"))
+        server.start()
+        try {
+            val provider = OllamaTextProvider("test-model", server.url("/").toString())
+            val expected = listOf(
+                AiFailureKind.AUTHENTICATION to false,
+                AiFailureKind.INVALID_REQUEST to false,
+                AiFailureKind.TEMPORARY_UNAVAILABLE to true
+            )
+            expected.forEach { (kind, fallback) ->
+                val failure = try {
+                    provider.generate(AiTextRequest("test"))
+                    null
+                } catch (e: AiProviderException) {
+                    e
+                }
+                assertEquals(kind, failure?.kind)
+                assertEquals(fallback, failure?.shouldFallback)
+            }
+        } finally {
+            server.shutdown()
+        }
+    }
+
+    @Test
+    fun ollamaRejectsMalformedResponseJson() = runBlocking {
+        val server = MockWebServer()
+        server.enqueue(MockResponse().setBody("not-json"))
+        server.start()
+        try {
+            val provider = OllamaTextProvider("test-model", server.url("/").toString())
+            val failure = try {
+                provider.generate(AiTextRequest("test"))
+                null
+            } catch (e: AiProviderException) {
+                e
+            }
+            assertEquals(AiFailureKind.INVALID_RESPONSE, failure?.kind)
+        } finally {
+            server.shutdown()
+        }
+    }
+
     @Test
     fun returnsUnavailableWhenAllTransientProvidersFail() = runBlocking {
         val providers = listOf("one", "two").map {
