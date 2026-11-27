@@ -31,6 +31,6 @@
 
 ## Security and reliability
 - Never ship cloud API keys, gateway secrets, or Ollama Cloud credentials in the APK.
-- The app currently supports a text-only local/remote Ollama adapter. A remote provider endpoint must be trusted and protected; plain HTTP is not suitable for public internet use.
+- Ollama supports text and image-input requests through this adapter. A remote provider endpoint must be trusted and protected; plain HTTP is restricted to localhost/private IPv4, and HTTPS is required for public hosts.
 - This router does not guarantee availability if providers are offline, out of quota, or unreachable.
-- Image and schema-constrained requests need capability negotiation and separate adapters before they can safely use fallback.
+- Image-based tutor streaming is still Gemini-only. Ollama JSON mode does not enforce the full Firebase schema; application-level validation is required.
