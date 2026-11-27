@@ -46,7 +46,7 @@ class OllamaTextProvider(
 
     private fun isPrivateHttpHost(host: String): Boolean {
         val normalized = host.lowercase()
-        if (normalized == "localhost" || normalized == "::1" || normalized.endsWith(".localhost")) return true
+        if (normalized == "localhost" || normalized == "::1" || normalized == "127.0.0.1" || normalized.endsWith(".localhost")) return true
         if (normalized.startsWith("10.") || normalized.startsWith("192.168.")) return true
         if (normalized.startsWith("172.")) {
             val second = normalized.substringAfter("172.").substringBefore(".").toIntOrNull()
