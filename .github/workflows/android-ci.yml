@@ -34,6 +34,45 @@ jobs:
         with:
           gradle-version: "9.3.1"
 
+      - name: Create CI-only Firebase configuration
+        run: |
+          cat > app/google-services.json <<'JSON'
+          {
+            "project_info": {
+              "project_number": "123456789012",
+              "project_id": "sora-ci-placeholder",
+              "storage_bucket": "sora-ci-placeholder.appspot.com"
+            },
+            "client": [
+              {
+                "client_info": {
+                  "mobilesdk_app_id": "1:123456789012:android:0000000000000000",
+                  "android_client_info": {
+                    "package_name": "com.aistudio.sora.kxmzqr"
+                  }
+                },
+                "oauth_client": [
+                  {
+                    "client_id": "123456789012-placeholder.apps.googleusercontent.com",
+                    "client_type": 3
+                  }
+                ],
+                "api_key": [
+                  {
+                    "current_key": "CI_PLACEHOLDER_KEY_NOT_VALID_FOR_AUTH"
+                  }
+                ],
+                "services": {
+                  "appinvite_service": {
+                    "other_platform_oauth_client": []
+                  }
+                }
+              }
+            ],
+            "configuration_version": "1"
+          }
+          JSON
+
       - name: Run unit tests
         run: gradle testDebugUnitTest
 
