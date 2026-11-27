@@ -333,6 +333,7 @@ private fun SoraAuthenticatedContent(
                                                 try {
                                                     accountDataExporter.exportToCache()
                                                         .onSuccess { file ->
+                                                            viewModel.showBanner("Export includes Firestore study data and extracted pages; original uploaded files are not bundled.")
                                                             val uri = FileProvider.getUriForFile(
                                                                 appContext,
                                                                 "${appContext.packageName}.fileprovider",
