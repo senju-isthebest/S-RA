@@ -568,7 +568,17 @@ class SoraViewModel(
                         true, index, chapters.size,
                         "Chapter " + chapter.chapterNumber + "/" + chapters.size + ": " + chapter.title
                     )
-                    val complete = generateAllResourcesForChapterInternal(book, chapter, pages, forceGenerate = forceRegenerate)
+                    val complete = try {
+                        generateAllResourcesForChapterInternal(book, chapter, pages, forceGenerate = forceRegenerate)
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (error: Exception) {
+                        repository.updateChapterFields(book.id, chapter.id, mapOf(
+                            "generationStatus" to "FAILED",
+                            "generationError" to (error.localizedMessage ?: "Unexpected generation error").take(500)
+                        ))
+                        false
+                    }
                     if (complete) completedChapters++ else failedChapters++
                     _ingestionProgress.value = IngestionProgressState(
                         true, index + 1, chapters.size,
