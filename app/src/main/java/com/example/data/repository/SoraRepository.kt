@@ -177,7 +177,7 @@ class SoraRepository(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            handleFirestoreError(e, OperationType.READ, path)
+            handleFirestoreError(e, OperationType.GET, path)
             Result.failure(e)
         }
     }
