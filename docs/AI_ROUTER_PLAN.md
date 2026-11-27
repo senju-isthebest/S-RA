@@ -23,7 +23,7 @@ Android app -> authenticated AI Gateway -> provider adapters
 2. Fall back only on rate-limit, service-unavailable, timeout, or network failures.
 3. Do not fallback for malformed user input, blocked requests, authentication failures, or cancellations.
 4. Return a clear temporary-unavailable state if all providers fail.
-5. Preserve JSON validation for structured outputs; reject invalid JSON and retry once with a repair prompt (not implemented yet).
+5. Preserve JSON validation for structured outputs; reject invalid JSON and retry once with a repair prompt (implemented for Ollama structured fallback).
 6. Cache successful generated resources by content/task/version to avoid duplicate generation (not implemented yet).
 
 ## Security requirements
@@ -31,7 +31,7 @@ Android app -> authenticated AI Gateway -> provider adapters
 - Gateway requests must validate Firebase Auth and App Check.
 - Apply per-user quotas, request-size limits, concurrency controls, timeouts, and audit-safe error logging.
 - Do not log book contents or prompts by default.
-- Require HTTPS for remotely hosted provider endpoints.
+- Require HTTPS for remotely hosted provider endpoints. Plain HTTP is allowed only for loopback or private IPv4 addresses.
 
 ## Ollama note
 Local Ollama is free to run but uses the host's hardware and must be reachable to the app. The endpoint can be configured with Gradle property/environment variable `OLLAMA_BASE_URL`; model via `OLLAMA_MODEL`. A public shared Ollama endpoint must be secured and rate-limited before use.
@@ -42,5 +42,5 @@ Local Ollama is free to run but uses the host's hardware and must be reachable t
 3. Router and integration for text-only features. (implemented)
 4. Build-time optional fallback configuration. (implemented)
 5. Structured JSON fallback, OCR fallback, and non-image tutor fallback. (implemented; image-based tutor fallback pending)
-6. Structured-response validation and repair plus adapter/router tests. (implemented; retry/backoff and caching pending)
+6. Structured-response validation and one repair attempt plus adapter/router tests. (implemented; retry/backoff and caching pending)
 7. Build/test verification in a reproducible environment. (pending)
