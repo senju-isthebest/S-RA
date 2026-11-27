@@ -228,7 +228,9 @@ class SoraRepository(
             listOf("chapters", "glossary").forEach { childCollection ->
                 bookRef.collection(childCollection).get().await().documents.forEach { deleteRefs += it.reference }
             }
-            listOf("questions", "flashcards", "notes", "plannerTasks", "focusSessions", "tutorMessages", "citations").forEach { collectionName ->
+                        userDoc(uid).collection("exams").whereArrayContains("bookIds", bookId).get().await()
+                .documents.forEach { deleteRefs += it.reference }
+listOf("questions", "flashcards", "notes", "plannerTasks", "focusSessions", "tutorMessages", "citations").forEach { collectionName ->
                 userDoc(uid).collection(collectionName).whereEqualTo("bookId", bookId).get().await()
                     .documents.forEach { deleteRefs += it.reference }
             }
