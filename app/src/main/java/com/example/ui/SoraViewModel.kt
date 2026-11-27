@@ -665,7 +665,7 @@ class SoraViewModel(
 
         if (!flashcardsDone) {
             delay(900L)
-            _ingestionProgress.value = _ingestionProgress.value.copy(label = "Generating Chapter " + chapter.chapterNumber + " flashcards...")
+            _ingestionProgress.value = _ingestionProgress.value.copy(statusLabel = "Generating Chapter " + chapter.chapterNumber + " flashcards...")
             val result = aiService.generateFlashcardsForChapter(book.id, chapter, pages, count = (8 - flashcardOffset).coerceAtLeast(1))
             result.onSuccess { generated ->
                 val stableCards = generated.mapIndexed { index, card ->
