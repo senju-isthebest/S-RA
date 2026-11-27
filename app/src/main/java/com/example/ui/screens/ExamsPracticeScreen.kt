@@ -30,6 +30,18 @@ import com.example.ui.theme.SoraWarning
 import kotlinx.coroutines.delay
 import org.json.JSONObject
 
+
+private fun parseExamAnswers(raw: String): MutableMap<String, String> {
+    val json = try { JSONObject(raw.ifBlank { "{}" }) } catch (_: Exception) { JSONObject() }
+    val result = mutableMapOf<String, String>()
+    val keys = json.keys()
+    while (keys.hasNext()) {
+        val key = keys.next()
+        result[key] = json.optString(key, "")
+    }
+    return result
+}
+
 @Composable
 fun ExamsPracticeScreen(
     books: List<Book>,
@@ -356,11 +368,6 @@ fun ExamSessionScreen(
     viewModel: SoraViewModel,
     onClose: () -> Unit
 ) {
-    BackHandler(onBack = {
-        viewModel.saveExamProgress(exam, answersMap, flaggedIds, currentIdx, elapsedSeconds)
-        onClose()
-    })
-
     val context = LocalContext.current
     val exportManager = remember { ExportManager(context) }
 
@@ -417,6 +424,11 @@ fun ExamSessionScreen(
         mutableIntStateOf(((System.currentTimeMillis() - clockStartMillis).coerceAtLeast(0L) / 1000L).coerceAtMost(36000L).toInt())
     }
     var showConfirmSubmit by remember { mutableStateOf(false) }
+
+    BackHandler(onBack = {
+        viewModel.saveExamProgress(exam, answersMap, flaggedIds, currentIdx, elapsedSeconds)
+        onClose()
+    })
 
     LaunchedEffect(exam.id, exam.deadlineAtMillis, exam.status) {
         if (exam.status == "SUBMITTED") return@LaunchedEffect
@@ -611,17 +623,6 @@ fun ExamSessionScreen(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-
-private fun parseExamAnswers(raw: String): MutableMap<String, String> {
-    val json = try { JSONObject(raw.ifBlank { "{}" }) } catch (_: Exception) { JSONObject() }
-    val result = mutableMapOf<String, String>()
-    val keys = json.keys()
-    while (keys.hasNext()) {
-        val key = keys.next()
-        result[key] = json.optString(key, "")
-    }
-    return result
-}
 
 private fun ExamResultsScreen(
     exam: ExamRecord,
