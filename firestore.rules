@@ -96,6 +96,12 @@ service cloud.firestore {
              data.estimatedStudyMinutes is int && data.estimatedStudyMinutes >= 1 && data.estimatedStudyMinutes <= 1000 &&
              data.masteryScore is int && data.masteryScore >= 0 && data.masteryScore <= 100 &&
              data.masteryStatus in ['NOT_STARTED', 'LEARNING', 'REVIEWING', 'MASTERED'] &&
+             (!('intelligenceGenerated' in data) || data.intelligenceGenerated is bool) &&
+             (!('questionsGenerated' in data) || data.questionsGenerated is bool) &&
+             (!('flashcardsGenerated' in data) || data.flashcardsGenerated is bool) &&
+             (!('generationStatus' in data) || data.generationStatus in ['PENDING', 'PROCESSING', 'PARTIAL', 'COMPLETE', 'FAILED']) &&
+             (!('generationAttempts' in data) || (data.generationAttempts is int && data.generationAttempts >= 0 && data.generationAttempts <= 100)) &&
+             (!('generationError' in data) || isBoundedString(data.generationError, 0, 500)) &&
              (!('userGoal' in data) || isBoundedString(data.userGoal, 0, 500)) &&
              (!('quickSummary' in data) || isBoundedString(data.quickSummary, 0, 4000)) &&
              (!('detailedSummary' in data) || isBoundedString(data.detailedSummary, 0, 12000)) &&
@@ -333,8 +339,8 @@ service cloud.firestore {
           allow list: if isOwner(userId) && isValidId(bookId);
           allow create: if isOwner(userId) && isValidId(bookId) && isValidId(chapterId) &&
                            incoming().bookId == bookId &&
-                           incoming().keys().hasAll(['bookId', 'chapterNumber', 'title', 'startPage', 'endPage', 'estimatedStudyMinutes', 'masteryScore', 'masteryStatus', 'createdAt', 'updatedAt']) &&
-                           incoming().keys().hasOnly(['bookId', 'chapterNumber', 'title', 'startPage', 'endPage', 'estimatedStudyMinutes', 'masteryScore', 'masteryStatus', 'userGoal', 'quickSummary', 'detailedSummary', 'bulletSummary', 'examRevisionSummary', 'learningObjectives', 'mainTopics', 'prerequisites', 'keyConcepts', 'importantDefinitions', 'importantFacts', 'importantDates', 'formulas', 'examples', 'misconceptions', 'comparisons', 'difficultSections', 'relatedChapters', 'conceptMapJson', 'lastStudiedAt', 'createdAt', 'updatedAt']) &&
+                           incoming().keys().hasAll(['bookId', 'chapterNumber', 'title', 'startPage', 'endPage', 'estimatedStudyMinutes', 'masteryScore', 'masteryStatus', 'intelligenceGenerated', 'questionsGenerated', 'flashcardsGenerated', 'generationStatus', 'generationAttempts', 'generationError', 'createdAt', 'updatedAt']) &&
+                           incoming().keys().hasOnly(['bookId', 'chapterNumber', 'title', 'startPage', 'endPage', 'estimatedStudyMinutes', 'masteryScore', 'masteryStatus', 'intelligenceGenerated', 'questionsGenerated', 'flashcardsGenerated', 'generationStatus', 'generationAttempts', 'generationError', 'userGoal', 'quickSummary', 'detailedSummary', 'bulletSummary', 'examRevisionSummary', 'learningObjectives', 'mainTopics', 'prerequisites', 'keyConcepts', 'importantDefinitions', 'importantFacts', 'importantDates', 'formulas', 'examples', 'misconceptions', 'comparisons', 'difficultSections', 'relatedChapters', 'conceptMapJson', 'lastStudiedAt', 'createdAt', 'updatedAt']) &&
                            incoming().createdAt is timestamp && incoming().createdAt <= request.time &&
                            incoming().updatedAt is timestamp && incoming().updatedAt <= request.time &&
                            isValidChapter(incoming());
