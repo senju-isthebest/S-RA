@@ -197,11 +197,13 @@ class CloudBookSyncManager(
                 val method = doc.getString("extractionMethod") ?: "TEXT"
                 val error = doc.getString("error")
                 val count = doc.getLong("chunkCount")?.toInt() ?: 1
+                require(doc.id == "p%05d_c%03d".format(page, index)) { "Cloud page chunk ID does not match its payload." }
                 Triple(page, index, PagePart(count, text, method, error))
             }
             val result = parts.groupBy { it.first }.toSortedMap().map { (pageNumber, pageParts) ->
                 val sorted = pageParts.sortedBy { it.second }
                 val expectedCount = sorted.firstOrNull()?.third?.count ?: 1
+                require(sorted.all { it.third.count == expectedCount }) { "Cloud page chunk metadata is inconsistent." }
                 require(sorted.size == expectedCount && sorted.map { it.second } == (0 until expectedCount).toList()) {
                     "Cloud page text is incomplete."
                 }
