@@ -1,6 +1,9 @@
 name: Android CI
 
 on:
+  push:
+    branches:
+      - feature/ai-provider-router
   workflow_dispatch:
 
 jobs:
