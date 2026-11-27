@@ -28,6 +28,7 @@ import com.example.data.model.TutorMessage
 import com.example.data.model.TutorMode
 import com.example.data.model.UserProfile
 import com.example.data.repository.SoraRepository
+import com.example.data.sync.CloudBookSyncManager
 import com.example.ui.theme.SoraThemeMode
 import com.google.firebase.firestore.FirebaseFirestoreException
 import kotlinx.coroutines.CancellationException
@@ -76,6 +77,8 @@ class SoraViewModel(
     private val userPreferences: UserPreferences,
     val currentUserId: String
 ) : ViewModel() {
+
+    private val cloudBookSync = CloudBookSyncManager()
 
     private val _bannerMessage = MutableStateFlow<String?>(null)
     val bannerMessage: StateFlow<String?> = _bannerMessage.asStateFlow()
@@ -212,7 +215,21 @@ class SoraViewModel(
     fun openBookWorkspace(book: Book) {
         _selectedBookId.value = book.id
         viewModelScope.launch {
-            _loadedBookPages.value = documentProcessor.loadPages(book.localBookId)
+            val localPages = documentProcessor.loadPages(book.localBookId)
+            if (localPages.isNotEmpty()) {
+                _loadedBookPages.value = localPages
+            } else {
+                _loadedBookPages.value = emptyList()
+                val cloudPages = cloudBookSync.downloadPages(book.id).getOrNull()
+                if (!cloudPages.isNullOrEmpty()) {
+                    documentProcessor.savePages(book.localBookId, cloudPages)
+                    _loadedBookPages.value = cloudPages
+                }
+            }
+            val localSource = documentProcessor.getLocalFile(book.localBookId, book.fileName)
+            if (!localSource.exists() && book.storagePath.isNotBlank()) {
+                cloudBookSync.downloadSourceFile(book.id, localSource)
+            }
         }
     }
 
@@ -284,7 +301,10 @@ class SoraViewModel(
                 extractionStatus = "FAILED",
                 extractionError = result.extractionError
             )
-            repository.createBookWithId(localId, failedBook)
+            val saved = repository.createBookWithId(localId, failedBook)
+            if (saved.isSuccess) {
+                syncImportedBook(localId, result.fileName, result.pages)
+            }
             _ingestionProgress.value = IngestionProgressState(false)
             _bannerMessage.value = result.extractionError.ifBlank { "Document extraction failed." }
             return
@@ -328,6 +348,9 @@ class SoraViewModel(
             return
         }
 
+        _ingestionProgress.value = IngestionProgressState(true, 0, 2, "Syncing book file and extracted pages...")
+        val cloudSynced = syncImportedBook(localId, result.fileName, result.pages)
+
         val chapters = structure?.chapters ?: listOf(
             Chapter(
                 bookId = localId,
@@ -357,10 +380,80 @@ class SoraViewModel(
         _ingestionProgress.value = IngestionProgressState(false)
         _selectedBookId.value = localId
         _loadedBookPages.value = result.pages
-        _bannerMessage.value = if (result.extractionStatus == "PARTIAL") {
-            "Imported with ${result.failedPages.size} failed page(s). You can retry failed pages anytime."
+        _bannerMessage.value = when {
+            !cloudSynced -> "Book saved locally, but cloud sync failed. It will remain available on this device."
+            result.extractionStatus == "PARTIAL" -> "Imported and synced with ${result.failedPages.size} failed page(s). You can retry failed pages anytime."
+            else -> "\"$finalTitle\" analyzed into ${savedChapters.size} chapter(s) and synced."
+        }
+    }
+
+    private fun contentTypeFor(fileName: String): String = when (fileName.substringAfterLast('.', "").lowercase()) {
+        "pdf" -> "application/pdf"
+        "docx" -> "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        "pptx" -> "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+        "png" -> "image/png"
+        "jpg", "jpeg" -> "image/jpeg"
+        "webp" -> "image/webp"
+        "md" -> "text/markdown"
+        else -> "text/plain"
+    }
+
+    private suspend fun syncImportedBook(
+        bookId: String,
+        fileName: String,
+        pages: List<BookPageContent>
+    ): Boolean {
+        val file = documentProcessor.getLocalFile(bookId, fileName)
+        val contentType = contentTypeFor(fileName)
+        val fileSynced = cloudBookSync.uploadSourceFile(
+            bookId, file, fileName, contentType
+        ) { uploaded, total ->
+            _ingestionProgress.value = IngestionProgressState(
+                true, uploaded.coerceAtMost(Int.MAX_VALUE.toLong()).toInt(),
+                total.coerceAtLeast(1L).coerceAtMost(Int.MAX_VALUE.toLong()).toInt(),
+                "Uploading textbook file..."
+            )
+        }.isSuccess
+        val pagesSynced = if (pages.isEmpty()) {
+            true
         } else {
-            "\"$finalTitle\" analyzed into ${savedChapters.size} chapter(s)."
+            _ingestionProgress.value = IngestionProgressState(true, 0, pages.size, "Syncing extracted pages...")
+            cloudBookSync.uploadPages(bookId, pages) { done, total ->
+                _ingestionProgress.value = IngestionProgressState(true, done, total, "Syncing extracted pages...")
+            }.isSuccess
+        }
+        return fileSynced && pagesSynced
+    }
+
+    fun retryCloudSync(book: Book) {
+        viewModelScope.launch {
+            _ingestionProgress.value = IngestionProgressState(true, 0, 1, "Retrying cloud sync...")
+            var pages = documentProcessor.loadPages(book.localBookId)
+            if (pages.isEmpty() && book.cloudPageCount > 0L) {
+                pages = cloudBookSync.downloadPages(book.id).getOrNull().orEmpty()
+                if (pages.isNotEmpty()) documentProcessor.savePages(book.localBookId, pages)
+            }
+            val localFile = documentProcessor.getLocalFile(book.localBookId, book.fileName)
+            val sourceOk = if (localFile.exists()) {
+                cloudBookSync.uploadSourceFile(book.id, localFile, book.fileName, contentTypeFor(book.fileName)) { uploaded, total ->
+                    _ingestionProgress.value = IngestionProgressState(
+                        true, uploaded.coerceAtMost(Int.MAX_VALUE.toLong()).toInt(),
+                        total.coerceAtLeast(1L).coerceAtMost(Int.MAX_VALUE.toLong()).toInt(),
+                        "Uploading textbook file..."
+                    )
+                }.isSuccess
+            } else if (book.storagePath.isNotBlank()) {
+                cloudBookSync.downloadSourceFile(book.id, localFile).isSuccess
+            } else false
+            val pagesOk = when {
+                pages.isNotEmpty() -> cloudBookSync.uploadPages(book.id, pages) { done, total ->
+                    _ingestionProgress.value = IngestionProgressState(true, done, total, "Syncing extracted pages...")
+                }.isSuccess
+                book.cloudPageCount == 0L -> true
+                else -> false
+            }
+            _ingestionProgress.value = IngestionProgressState(false)
+            _bannerMessage.value = if (sourceOk && pagesOk) "Cloud sync completed." else "Cloud sync is still unavailable. Your local copy is safe."
         }
     }
 
@@ -510,8 +603,20 @@ class SoraViewModel(
 
     fun deleteBook(bookId: String) {
         viewModelScope.launch {
+            val cloudCleanup = cloudBookSync.deleteCloudBookData(bookId)
+            if (cloudCleanup.isFailure) {
+                _bannerMessage.value = "Could not remove cloud copy. Book was kept so cleanup can be retried."
+                return@launch
+            }
+            val deleted = repository.deleteBook(bookId)
+            if (deleted.isFailure) {
+                _bannerMessage.value = "Cloud copy removed, but book metadata could not be deleted."
+                return@launch
+            }
+            val localBookId = books.value.firstOrNull { it.id == bookId }?.localBookId?.takeIf { it.isNotBlank() } ?: bookId
+            runCatching { documentProcessor.deleteLocalBook(localBookId) }
             if (_selectedBookId.value == bookId) closeBookWorkspace()
-            repository.deleteBook(bookId)
+            _bannerMessage.value = "Book and synced files deleted."
         }
     }
 

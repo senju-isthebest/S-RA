@@ -1,0 +1,36 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function signedInAs(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+
+    function validBookId(bookId) {
+      return bookId is string && bookId.matches('^[a-zA-Z0-9_-]{1,128}$');
+    }
+
+    // Original uploaded textbook only. Enforce conservative size and MIME limits.
+    match /users/{uid}/books/{bookId}/source {
+      allow read: if signedInAs(uid) && validBookId(bookId);
+      allow create, update: if signedInAs(uid) &&
+        validBookId(bookId) &&
+        request.resource.size <= 80 * 1024 * 1024 &&
+        request.resource.contentType in [
+          'application/pdf',
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+          'text/plain',
+          'text/markdown',
+          'image/jpeg',
+          'image/png',
+          'image/webp'
+        ];
+      allow delete: if signedInAs(uid) && validBookId(bookId);
+    }
+
+    // No other objects are accessible, even to authenticated users.
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

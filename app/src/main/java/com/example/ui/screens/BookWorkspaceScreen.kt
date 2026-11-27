@@ -77,6 +77,7 @@ fun BookWorkspaceScreen(
                     Column {
                         Text(book.title, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleMedium)
                         Text("${book.subjectName} • ${chapters.size} chapters • ${book.masteryScore}% mastery", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("File: ${book.syncStatus} • Pages: ${book.pagesSyncStatus}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 },
                 navigationIcon = {
@@ -85,6 +86,9 @@ fun BookWorkspaceScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = { viewModel.retryCloudSync(book) }, modifier = Modifier.testTag("cloud_sync_retry")) {
+                        Icon(Icons.Rounded.CloudUpload, contentDescription = "Retry cloud sync")
+                    }
                     IconButton(onClick = { onLaunchFocusForBook(book, selectedChapter) }) {
                         Icon(Icons.Rounded.Timer, contentDescription = "Start focus timer for book")
                     }

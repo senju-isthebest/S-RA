@@ -460,3 +460,94 @@ test("Exams enforce terminal SUBMITTED state lock", async () => {
     })
   );
 });
+
+test("Cloud book metadata and page text sync are owner-scoped", async () => {
+  const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
+  const bobDb = testEnv.authenticatedContext(BOB_UID).firestore();
+  const now = new Date(Date.now() - 2000);
+  const book = aliceDb.collection("users").doc(ALICE_UID).collection("books").doc("cloud_book_1");
+
+  await assertSucceeds(book.set({
+    title: "Cloud Sync Test Book",
+    subjectName: "General",
+    sourceType: "PDF",
+    localBookId: "cloud_book_1",
+    totalPages: 2,
+    processedPages: 2,
+    currentPage: 1,
+    extractionStatus: "COMPLETE",
+    archived: false,
+    masteryScore: 0,
+    storagePath: `users/${ALICE_UID}/books/cloud_book_1/source`,
+    sourceSizeBytes: 1024,
+    sourceSha256: "a".repeat(64),
+    syncStatus: "SYNCED",
+    cloudPageCount: 2,
+    createdAt: now,
+    updatedAt: now,
+  }));
+
+  await assertSucceeds(book.update({
+    fileName: "cloud_copy.pdf",
+    storagePath: `users/${ALICE_UID}/books/cloud_book_1/source`,
+    sourceSizeBytes: 2048,
+    sourceSha256: "b".repeat(64),
+    syncStatus: "SYNCED",
+    pagesSyncStatus: "UPLOADING",
+    updatedAt: new Date(Date.now() - 1000),
+  }));
+
+  const pageRef = book.collection("pages").doc("p00001_c000");
+  await assertSucceeds(pageRef.set({
+    pageNumber: 1,
+    chunkIndex: 0,
+    chunkCount: 1,
+    text: "Synced page text",
+    extractionMethod: "PDF_TEXT",
+    updatedAt: new Date(Date.now() - 1000),
+  }));
+
+  await assertSucceeds(pageRef.get());
+
+  // Page ids and chunk metadata are validated; oversized chunk counts are rejected.
+  await assertFails(book.collection("pages").doc("malformed").set({
+    pageNumber: 1,
+    chunkIndex: 0,
+    chunkCount: 101,
+    text: "invalid",
+    extractionMethod: "PDF_TEXT",
+    updatedAt: new Date(Date.now() - 1000),
+  }));
+  await assertFails(book.collection("pages").doc("p00001_c001").set({
+    pageNumber: 1,
+    chunkIndex: 1,
+    chunkCount: 1,
+    text: "invalid chunk sequence",
+    extractionMethod: "PDF_TEXT",
+    updatedAt: new Date(Date.now() - 1000),
+  }));
+  await assertFails(book.collection("pages").doc("p00003_c000").set({
+    pageNumber: 3,
+    chunkIndex: 0,
+    chunkCount: 1,
+    text: "x".repeat(9001),
+    extractionMethod: "PDF_TEXT",
+    updatedAt: new Date(Date.now() - 1000),
+  }));
+
+  await assertFails(
+    bobDb.collection("users").doc(ALICE_UID).collection("books")
+      .doc("cloud_book_1").collection("pages").doc("p00001_c000").get()
+  );
+  await assertFails(
+    bobDb.collection("users").doc(ALICE_UID).collection("books")
+      .doc("cloud_book_1").collection("pages").doc("p00002_c000").set({
+        pageNumber: 2,
+        chunkIndex: 0,
+        chunkCount: 1,
+        text: "Injected",
+        extractionMethod: "TEXT",
+        updatedAt: new Date(Date.now() - 1000),
+      })
+  );
+});
