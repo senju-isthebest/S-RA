@@ -17,7 +17,7 @@
 - Structured generation (book structure, chapter intelligence, question generation, flashcards, teach-back) still uses Firebase AI Logic response schemas.
 - OCR/image generation and tutor streaming still use Firebase AI Logic.
 - Runtime provider settings UI is not implemented; fallback configuration is build-time only.
-- Build/test execution has not been performed in this environment. The branch is not yet verified to compile.
+- A CI attempt failed during Android SDK setup because the workflow requested the obsolete SDK package `tools`; the workflow configuration was corrected. A successful rerun has not yet been confirmed, so the branch remains unverified to compile.
 
 ## Build-time fallback configuration
 - Set `OLLAMA_BASE_URL` to a trusted Ollama endpoint.
