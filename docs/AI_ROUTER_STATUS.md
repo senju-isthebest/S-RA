@@ -16,7 +16,7 @@
 - OkHttp dependency enabled for the Ollama adapter.
 
 ## Not integrated yet
-- No secured remote AI gateway/server has been deployed. A shared remote Ollama endpoint must not be exposed without TLS, authentication, quotas, and abuse protection.
+- No secured remote AI gateway/server has been deployed. This adapter does not support gateway auth headers, so a public Ollama endpoint is not a safe/usable fallback; use local/private-network endpoints or wait for an authenticated gateway.
 - Fallback support for structured JSON is implemented, but the Ollama path does not enforce the Firebase response schema itself; application JSON parsing/validation and one repair attempt are used.
 - Tutor requests that include a page image remain Gemini-only; image-based tutor fallback is not implemented.
 - Runtime provider settings UI is not implemented; fallback configuration is build-time only.
@@ -32,6 +32,6 @@
 
 ## Security and reliability
 - Never ship cloud API keys, gateway secrets, or Ollama Cloud credentials in the APK.
-- Ollama supports text and image-input requests through this adapter. A remote provider endpoint must be trusted and protected; plain HTTP is restricted to localhost/private IPv4, and HTTPS is required for public hosts.
+- Ollama supports text and image-input requests through this adapter. A remote provider endpoint must be trusted and protected; plain HTTP is restricted to localhost/private IPv4, and HTTPS is required for public hosts. This adapter has no auth-header support, so do not use an exposed public Ollama endpoint; only use endpoints intentionally configured for direct client access.
 - This router does not guarantee availability if providers are offline, out of quota, or unreachable.
 - Image-based tutor streaming is still Gemini-only. Ollama JSON mode does not enforce the full Firebase schema; application-level validation is required.
