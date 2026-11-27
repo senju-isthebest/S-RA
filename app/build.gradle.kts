@@ -26,6 +26,8 @@ android {
         applicationId = "com.aistudio.sora.kxmzqr"
         minSdk = 24
     targetSdk = 36
+    buildConfigField("String", "OLLAMA_BASE_URL", buildConfigString(ollamaBaseUrl))
+    buildConfigField("String", "OLLAMA_MODEL", buildConfigString(ollamaModel))
     versionCode = 1
     versionName = "1.0"
 
