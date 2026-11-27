@@ -590,7 +590,8 @@ class SoraViewModel(
                 _bannerMessage.value = "Cloud copy removed, but book metadata could not be deleted."
                 return@launch
             }
-            runCatching { documentProcessor.deleteLocalBook(bookId) }
+            val localBookId = books.value.firstOrNull { it.id == bookId }?.localBookId?.takeIf { it.isNotBlank() } ?: bookId
+            runCatching { documentProcessor.deleteLocalBook(localBookId) }
             if (_selectedBookId.value == bookId) closeBookWorkspace()
             _bannerMessage.value = "Book and synced files deleted."
         }
