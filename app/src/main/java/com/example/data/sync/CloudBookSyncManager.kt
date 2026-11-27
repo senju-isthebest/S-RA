@@ -49,6 +49,17 @@ class CloudBookSyncManager(
         validateBookId(bookId)
         require(file.isFile && file.exists()) { "Book source file not found." }
         require(file.length() in 1..MAX_SOURCE_BYTES) { "File must be smaller than 80 MiB." }
+        val allowedTypes = setOf(
+            "application/pdf",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            "text/plain",
+            "text/markdown",
+            "image/jpeg",
+            "image/png",
+            "image/webp"
+        )
+        require(contentType in allowedTypes) { "Unsupported file type." }
         val ref = sourceRef(userId, bookId)
         val safeName = originalFileName.take(200)
         val hash = sha256(file)
@@ -60,6 +71,7 @@ class CloudBookSyncManager(
             .setCustomMetadata("sha256", hash)
             .build()
         return try {
+            bookRef(userId, bookId).update(mapOf("syncStatus" to "UPLOADING", "updatedAt" to FieldValue.serverTimestamp())).await()
             val uploadTask = ref.putFile(Uri.fromFile(file), metadata)
             uploadTask.addOnProgressListener { snapshot ->
                 onProgress(snapshot.bytesTransferred, snapshot.totalByteCount)
@@ -79,7 +91,6 @@ class CloudBookSyncManager(
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (error: Exception) {
-            runCatching { ref.delete().await() }
             runCatching {
                 bookRef(userId, bookId).update(
                     mapOf("syncStatus" to "FAILED", "updatedAt" to FieldValue.serverTimestamp())
@@ -127,19 +138,21 @@ class CloudBookSyncManager(
         return try {
             val existing = pagesRef.get().await()
             val records = pages.flatMap { page ->
+                require(page.pageNumber in 1..5000) { "Invalid page number." }
                 val chunks = page.text.chunked(PAGE_CHUNK_CHARS).ifEmpty { listOf("") }
                 require(chunks.size <= 1_000) { "Page text has too many chunks." }
                 chunks.mapIndexed { chunkIndex, chunk ->
                     val docId = "p%05d_c%03d".format(page.pageNumber, chunkIndex)
-                    docId to mapOf(
+                    val payload = mutableMapOf<String, Any>(
                         "pageNumber" to page.pageNumber,
                         "chunkIndex" to chunkIndex,
                         "chunkCount" to chunks.size,
                         "text" to chunk,
                         "extractionMethod" to page.extractionMethod.take(40),
-                        "error" to page.error?.take(500),
                         "updatedAt" to FieldValue.serverTimestamp()
-                    ).filterValues { it != null }
+                    )
+                    page.error?.take(500)?.let { payload["error"] = it }
+                    docId to payload
                 }
             }
             val newIds = records.map { it.first }.toSet()
