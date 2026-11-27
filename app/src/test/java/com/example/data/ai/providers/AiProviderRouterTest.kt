@@ -100,6 +100,23 @@ class AiProviderRouterTest {
         }
     }
 
+
+    @Test
+    fun ollamaJsonModeRequestsJsonOutput() = runBlocking {
+        val server = MockWebServer()
+        server.enqueue(MockResponse().setBody("""{"response":"{\\"answer\\":42}"}"""))
+        server.start()
+        try {
+            val provider = OllamaTextProvider("test-model", server.url("/").toString())
+            provider.generate(AiTextRequest(prompt = "Return JSON", responseFormat = AiResponseFormat.JSON))
+            val request = server.takeRequest()
+            val payload = org.json.JSONObject(request.body.readUtf8())
+            assertEquals("json", payload.getString("format"))
+        } finally {
+            server.shutdown()
+        }
+    }
+
     @Test
     fun ollamaRateLimitIsTypedForFallback() = runBlocking {
         val server = MockWebServer()
