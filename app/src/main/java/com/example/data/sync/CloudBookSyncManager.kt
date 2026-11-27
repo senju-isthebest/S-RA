@@ -1,6 +1,5 @@
 package com.example.data.sync
 
-import android.content.Context
 import android.net.Uri
 import com.example.data.model.BookPageContent
 import com.google.firebase.auth.FirebaseAuth
@@ -14,7 +13,6 @@ import java.security.MessageDigest
 
 /** User-scoped textbook source and extracted-page sync. */
 class CloudBookSyncManager(
-    private val context: Context,
     private val auth: FirebaseAuth = FirebaseAuth.getInstance(),
     private val firestore: FirebaseFirestore = FirebaseFirestore.getInstance(),
     private val storage: FirebaseStorage = FirebaseStorage.getInstance()
