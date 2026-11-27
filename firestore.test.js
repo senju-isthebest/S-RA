@@ -498,6 +498,33 @@ test("Cloud book metadata and page text sync are owner-scoped", async () => {
   }));
 
   await assertSucceeds(pageRef.get());
+
+  // Page ids and chunk metadata are validated; oversized chunk counts are rejected.
+  await assertFails(book.collection("pages").doc("malformed").set({
+    pageNumber: 1,
+    chunkIndex: 0,
+    chunkCount: 101,
+    text: "invalid",
+    extractionMethod: "PDF_TEXT",
+    updatedAt: new Date(Date.now() - 1000),
+  }));
+  await assertFails(book.collection("pages").doc("p00001_c001").set({
+    pageNumber: 1,
+    chunkIndex: 1,
+    chunkCount: 1,
+    text: "invalid chunk sequence",
+    extractionMethod: "PDF_TEXT",
+    updatedAt: new Date(Date.now() - 1000),
+  }));
+  await assertFails(book.collection("pages").doc("p00003_c000").set({
+    pageNumber: 3,
+    chunkIndex: 0,
+    chunkCount: 1,
+    text: "x".repeat(9001),
+    extractionMethod: "PDF_TEXT",
+    updatedAt: new Date(Date.now() - 1000),
+  }));
+
   await assertFails(
     bobDb.collection("users").doc(ALICE_UID).collection("books")
       .doc("cloud_book_1").collection("pages").doc("p00001_c000").get()
