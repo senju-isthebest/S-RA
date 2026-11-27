@@ -217,8 +217,35 @@ class SoraRepository(
     suspend fun updateBook(bookId: String, fields: Map<String, Any>): Result<Unit> =
         updateDoc("books", bookId, fields)
 
-    suspend fun deleteBook(bookId: String): Result<Unit> =
-        deleteDoc("books", bookId)
+    suspend fun deleteBook(bookId: String): Result<Unit> {
+        var path = "users/unauth/books/$bookId"
+        return try {
+            val uid = requireUserId()
+            val bookRef = userDoc(uid).collection("books").document(bookId)
+            path = bookRef.path
+            val deleteRefs = mutableListOf<com.google.firebase.firestore.DocumentReference>()
+            // Firestore does not cascade deletes for subcollections.
+            listOf("chapters", "glossary").forEach { childCollection ->
+                bookRef.collection(childCollection).get().await().documents.forEach { deleteRefs += it.reference }
+            }
+            listOf("questions", "flashcards", "notes", "plannerTasks", "focusSessions", "tutorMessages", "citations").forEach { collectionName ->
+                userDoc(uid).collection(collectionName).whereEqualTo("bookId", bookId).get().await()
+                    .documents.forEach { deleteRefs += it.reference }
+            }
+            deleteRefs.chunked(450).forEach { refs ->
+                val batch = db.batch()
+                refs.forEach { batch.delete(it) }
+                batch.commit().await()
+            }
+            bookRef.delete().await()
+            Result.success(Unit)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            handleFirestoreError(e, OperationType.DELETE, path)
+            Result.failure(e)
+        }
+    }
 
     // --- CHAPTERS & GLOSSARY ---
     suspend fun saveChapter(bookId: String, chapter: Chapter): Result<String> {
