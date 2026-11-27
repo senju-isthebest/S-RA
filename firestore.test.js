@@ -487,6 +487,16 @@ test("Cloud book metadata and page text sync are owner-scoped", async () => {
     updatedAt: now,
   }));
 
+  await assertSucceeds(book.update({
+    fileName: "cloud_copy.pdf",
+    storagePath: `users/${ALICE_UID}/books/cloud_book_1/source`,
+    sourceSizeBytes: 2048,
+    sourceSha256: "b".repeat(64),
+    syncStatus: "SYNCED",
+    pagesSyncStatus: "UPLOADING",
+    updatedAt: new Date(Date.now() - 1000),
+  }));
+
   const pageRef = book.collection("pages").doc("p00001_c000");
   await assertSucceeds(pageRef.set({
     pageNumber: 1,
