@@ -564,8 +564,19 @@ class SoraViewModel(
 
     fun deleteBook(bookId: String) {
         viewModelScope.launch {
+            val cloudCleanup = cloudBookSync.deleteCloudBookData(bookId)
+            if (cloudCleanup.isFailure) {
+                _bannerMessage.value = "Could not remove cloud copy. Book was kept so cleanup can be retried."
+                return@launch
+            }
+            val deleted = repository.deleteBook(bookId)
+            if (deleted.isFailure) {
+                _bannerMessage.value = "Cloud copy removed, but book metadata could not be deleted."
+                return@launch
+            }
+            runCatching { documentProcessor.deleteLocalBook(bookId) }
             if (_selectedBookId.value == bookId) closeBookWorkspace()
-            repository.deleteBook(bookId)
+            _bannerMessage.value = "Book and synced files deleted."
         }
     }
 
