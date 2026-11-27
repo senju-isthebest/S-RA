@@ -2,7 +2,10 @@ package com.example.data.ai.providers
 
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
+import okhttp3.mockwebserver.MockResponse
+import okhttp3.mockwebserver.MockWebServer
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Assert.assertThrows
 import org.junit.Test
 
@@ -75,6 +78,47 @@ class AiProviderRouterTest {
         assertEquals(false, backupCalled)
     }
 
+
+    @Test
+    fun ollamaAdapterPostsRequestAndParsesResponse() = runBlocking {
+        val server = MockWebServer()
+        server.enqueue(MockResponse().setBody("""{"response":"Adapter works"}"""))
+        server.start()
+        try {
+            val provider = OllamaTextProvider("test-model", server.url("/").toString())
+            val response = provider.generate(AiTextRequest(prompt = "hello", temperature = 0.2f, maxTokens = 42))
+            val request = server.takeRequest()
+            val payload = org.json.JSONObject(request.body.readUtf8())
+            assertEquals("/api/generate", request.path)
+            assertEquals("test-model", payload.getString("model"))
+            assertEquals("hello", payload.getString("prompt"))
+            assertEquals(false, payload.getBoolean("stream"))
+            assertEquals(42, payload.getJSONObject("options").getInt("num_predict"))
+            assertEquals("Adapter works", response.text)
+        } finally {
+            server.shutdown()
+        }
+    }
+
+    @Test
+    fun ollamaRateLimitIsTypedForFallback() = runBlocking {
+        val server = MockWebServer()
+        server.enqueue(MockResponse().setResponseCode(429).setBody("rate limit"))
+        server.start()
+        try {
+            val provider = OllamaTextProvider("test-model", server.url("/").toString())
+            val error = try {
+                provider.generate(AiTextRequest("test"))
+                null
+            } catch (e: AiProviderException) {
+                e
+            }
+            assertEquals(AiFailureKind.RATE_LIMITED, error?.kind)
+            assertTrue(error?.shouldFallback == true)
+        } finally {
+            server.shutdown()
+        }
+    }
 
     @Test
     fun rejectsPublicHttpOllamaEndpoint() {
