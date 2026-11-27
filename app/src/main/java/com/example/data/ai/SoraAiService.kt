@@ -98,10 +98,19 @@ class SoraAiService(
 
     private suspend fun generateOllamaJsonFallback(prompt: String, taskTag: String): String {
         val provider = OllamaTextProvider(modelId = ollamaModel, baseUrl = ollamaBaseUrl)
+        val schemaGuidance = when (taskTag) {
+            "book_structure" -> """JSON keys: title, author, subject, overview, formulaSheet, chapters. chapters is an array of objects with chapterNumber, title, startPage, endPage, estimatedStudyMinutes."""
+            "chapter_intelligence" -> """JSON keys: quickSummary, detailedSummary, bulletSummary, examRevisionSummary, learningObjectives, mainTopics, prerequisites, keyConcepts, importantDefinitions, importantFacts, importantDates, formulas, examples, misconceptions, comparisons, difficultSections, relatedChapters, conceptMap, glossary. conceptMap is a tree with id, label, summary, pageRef, children; glossary items have term, definition, simplifiedExplanation, example, pageReference, relatedTerms."""
+            "question_generation" -> """Return {"questions":[...]}. Each question has questionText, questionType, difficulty, options, correctAnswer, explanation, section, topic, sourcePage, learningObjective, tags, marks, estimatedSeconds."""
+            "flashcard_generation" -> """Return {"flashcards":[...]}. Each item has format, front, back, hint, pageReference."""
+            "teach_back" -> """JSON keys: scorePercent, accuratePoints, missingPoints, misconceptions, coachingFeedback."""
+            else -> "Return a JSON object matching the task's expected fields."
+        }
+        val jsonPrompt = prompt + "\n\n" + schemaGuidance + "\nReturn valid JSON only. Do not wrap it in markdown fences."
         return withTimeout(110_000L) {
             provider.generate(
                 AiTextRequest(
-                    prompt = prompt,
+                    prompt = jsonPrompt,
                     taskTag = taskTag,
                     responseFormat = com.example.data.ai.providers.AiResponseFormat.JSON
                 )
