@@ -28,6 +28,7 @@ import com.example.data.model.TutorMessage
 import com.example.data.model.TutorMode
 import com.example.data.model.UserProfile
 import com.example.data.repository.SoraRepository
+import com.example.data.sync.CloudBookSyncManager
 import com.example.ui.theme.SoraThemeMode
 import com.google.firebase.firestore.FirebaseFirestoreException
 import kotlinx.coroutines.CancellationException
@@ -76,6 +77,8 @@ class SoraViewModel(
     private val userPreferences: UserPreferences,
     val currentUserId: String
 ) : ViewModel() {
+
+    private val cloudBookSync = CloudBookSyncManager()
 
     private val _bannerMessage = MutableStateFlow<String?>(null)
     val bannerMessage: StateFlow<String?> = _bannerMessage.asStateFlow()
@@ -212,7 +215,21 @@ class SoraViewModel(
     fun openBookWorkspace(book: Book) {
         _selectedBookId.value = book.id
         viewModelScope.launch {
-            _loadedBookPages.value = documentProcessor.loadPages(book.localBookId)
+            val localPages = documentProcessor.loadPages(book.localBookId)
+            if (localPages.isNotEmpty()) {
+                _loadedBookPages.value = localPages
+                return@launch
+            }
+            _loadedBookPages.value = emptyList()
+            val cloudPages = cloudBookSync.downloadPages(book.id).getOrNull()
+            if (!cloudPages.isNullOrEmpty()) {
+                documentProcessor.savePages(book.localBookId, cloudPages)
+                _loadedBookPages.value = cloudPages
+            }
+            val localSource = documentProcessor.getLocalFile(book.localBookId, book.fileName)
+            if (!localSource.exists() && book.storagePath.isNotBlank()) {
+                cloudBookSync.downloadSourceFile(book.id, localSource)
+            }
         }
     }
 
@@ -284,7 +301,10 @@ class SoraViewModel(
                 extractionStatus = "FAILED",
                 extractionError = result.extractionError
             )
-            repository.createBookWithId(localId, failedBook)
+            val saved = repository.createBookWithId(localId, failedBook)
+            if (saved.isSuccess) {
+                syncImportedBook(localId, result.fileName, result.pages)
+            }
             _ingestionProgress.value = IngestionProgressState(false)
             _bannerMessage.value = result.extractionError.ifBlank { "Document extraction failed." }
             return
@@ -328,6 +348,9 @@ class SoraViewModel(
             return
         }
 
+        _ingestionProgress.value = IngestionProgressState(true, 0, 2, "Syncing book file and extracted pages...")
+        val cloudSynced = syncImportedBook(localId, result.fileName, result.pages)
+
         val chapters = structure?.chapters ?: listOf(
             Chapter(
                 bookId = localId,
@@ -357,11 +380,32 @@ class SoraViewModel(
         _ingestionProgress.value = IngestionProgressState(false)
         _selectedBookId.value = localId
         _loadedBookPages.value = result.pages
-        _bannerMessage.value = if (result.extractionStatus == "PARTIAL") {
-            "Imported with ${result.failedPages.size} failed page(s). You can retry failed pages anytime."
-        } else {
-            "\"$finalTitle\" analyzed into ${savedChapters.size} chapter(s)."
+        _bannerMessage.value = when {
+            !cloudSynced -> "Book saved locally, but cloud sync failed. It will remain available on this device."
+            result.extractionStatus == "PARTIAL" -> "Imported and synced with ${result.failedPages.size} failed page(s). You can retry failed pages anytime."
+            else -> "\"$finalTitle\" analyzed into ${savedChapters.size} chapter(s) and synced."
         }
+    }
+
+    private suspend fun syncImportedBook(
+        bookId: String,
+        fileName: String,
+        pages: List<BookPageContent>
+    ): Boolean {
+        val file = documentProcessor.getLocalFile(bookId, fileName)
+        val contentType = when (fileName.substringAfterLast('.', "").lowercase()) {
+            "pdf" -> "application/pdf"
+            "docx" -> "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            "pptx" -> "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+            "png" -> "image/png"
+            "jpg", "jpeg" -> "image/jpeg"
+            "webp" -> "image/webp"
+            "md" -> "text/markdown"
+            else -> "text/plain"
+        }
+        val fileSynced = cloudBookSync.uploadSourceFile(bookId, file, fileName, contentType).isSuccess
+        val pagesSynced = if (pages.isEmpty()) true else cloudBookSync.uploadPages(bookId, pages).isSuccess
+        return fileSynced && pagesSynced
     }
 
     fun retryFailedPages(book: Book) {
