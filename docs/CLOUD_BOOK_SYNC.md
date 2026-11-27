@@ -5,7 +5,7 @@
 - Metadata: Firestore `users/{uid}/books/{bookId}`
 - Extracted page text: Firestore `users/{uid}/books/{bookId}/pages/p00001_c000` (page/chunk ids are deterministic)
 
-The app retains the original and `pages.json` locally for offline reading. Cloud pages are split into 8,000-character chunks to stay comfortably below Firestore document limits. Upload batches are capped at 450 operations.
+The app retains the original and `pages.json` locally for offline reading. Cloud pages are split into 8,000-character chunks to stay comfortably below Firestore document limits. Each page is capped at 100,000 characters, and the whole book at 25 million extracted characters. Upload batches are capped at 450 operations.
 
 ## Sync behavior
 - Import creates the book metadata, then uploads the source and extracted text.
