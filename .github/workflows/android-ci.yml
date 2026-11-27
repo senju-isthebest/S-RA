@@ -77,6 +77,10 @@ jobs:
           }
           JSON
 
+      - name: Create temporary CI debug keystore
+        run: |
+          keytool -genkeypair -noprompt -keystore debug.keystore -storepass android -keypass android -alias androiddebugkey -dname "CN=Android Debug,O=Android,C=US" -keyalg RSA -keysize 2048 -validity 10000
+
       - name: Run unit tests
         run: |
           for attempt in 1 2 3; do
