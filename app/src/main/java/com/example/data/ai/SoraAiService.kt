@@ -76,6 +76,50 @@ class SoraAiService(
         AiProviderRouter(configuredProviders)
     }
 
+    private suspend fun generateStructuredTextWithFallback(
+        prompt: String,
+        taskTag: String,
+        primaryCall: suspend () -> String
+    ): String {
+        try {
+            return withTimeout(AI_TIMEOUT_MS) { primaryCall() }
+        } catch (timeout: TimeoutCancellationException) {
+            if (ollamaBaseUrl.isBlank()) throw timeout
+            Log.w(TAG, "$taskTag primary provider timed out; trying configured Ollama fallback.")
+            return generateOllamaJsonFallback(prompt, taskTag)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (failure: Exception) {
+            if (ollamaBaseUrl.isBlank() || !isTransientAiFailure(failure)) throw failure
+            Log.w(TAG, "$taskTag primary provider failed transiently; trying configured Ollama fallback.")
+            return generateOllamaJsonFallback(prompt, taskTag)
+        }
+    }
+
+    private suspend fun generateOllamaJsonFallback(prompt: String, taskTag: String): String {
+        val provider = OllamaTextProvider(modelId = ollamaModel, baseUrl = ollamaBaseUrl)
+        return withTimeout(110_000L) {
+            provider.generate(
+                AiTextRequest(
+                    prompt = prompt,
+                    taskTag = taskTag,
+                    responseFormat = com.example.data.ai.providers.AiResponseFormat.JSON
+                )
+            ).text
+        }
+    }
+
+    private fun isTransientAiFailure(failure: Throwable): Boolean {
+        val messages = generateSequence(failure) { it.cause }
+            .mapNotNull { it.message }
+            .joinToString(" ")
+            .lowercase()
+        return listOf(
+            "429", "quota", "rate limit", "rate-limit", "timeout", "timed out",
+            "network", "connection", "unavailable", "502", "503", "504", "500"
+        ).any { it in messages }
+    }
+
     private val structureSchema = Schema.obj(
         properties = mapOf(
             "title" to Schema.string(description = "Detected textbook title"),
@@ -308,10 +352,9 @@ class SoraAiService(
                 $excerpt
             """.trimIndent()
 
-            val response = withTimeout(AI_TIMEOUT_MS) {
-                structureModel.generateContent(prompt)
+            val jsonStr = generateStructuredTextWithFallback(prompt, "book_structure") {
+                structureModel.generateContent(prompt).text ?: error("Empty structure response from AI.")
             }
-            val jsonStr = response.text ?: error("Empty structure response from AI.")
             val json = JSONObject(jsonStr)
             val arr = json.optJSONArray("chapters") ?: JSONArray()
             val chapters = (0 until arr.length()).map { i ->
@@ -388,10 +431,11 @@ class SoraAiService(
                 $contextText
             """.trimIndent()
 
-            val response = withTimeout(AI_TIMEOUT_MS) {
-                chapterIntelModel.generateContent(prompt)
-            }
-            val json = JSONObject(response.text ?: error("Empty chapter intelligence response."))
+            val json = JSONObject(
+                generateStructuredTextWithFallback(prompt, "chapter_intelligence") {
+                    chapterIntelModel.generateContent(prompt).text ?: error("Empty chapter intelligence response.")
+                }
+            )
             val conceptMapStr = json.optJSONObject("conceptMap")?.toString().orEmpty()
 
             val updatedChapter = chapter.copy(
@@ -474,10 +518,11 @@ class SoraAiService(
                 $contextText
             """.trimIndent()
 
-            val response = withTimeout(AI_TIMEOUT_MS) {
-                questionModel.generateContent(prompt)
-            }
-            val json = JSONObject(response.text ?: error("Empty question response."))
+            val json = JSONObject(
+                generateStructuredTextWithFallback(prompt, "question_generation") {
+                    questionModel.generateContent(prompt).text ?: error("Empty question response.")
+                }
+            )
             val arr = json.optJSONArray("questions") ?: JSONArray()
             val maxPage = pages.size.coerceAtLeast(1)
 
@@ -540,10 +585,11 @@ class SoraAiService(
                 $contextText
             """.trimIndent()
 
-            val response = withTimeout(AI_TIMEOUT_MS) {
-                flashcardModel.generateContent(prompt)
-            }
-            val json = JSONObject(response.text ?: error("Empty flashcard response."))
+            val json = JSONObject(
+                generateStructuredTextWithFallback(prompt, "flashcard_generation") {
+                    flashcardModel.generateContent(prompt).text ?: error("Empty flashcard response.")
+                }
+            )
             val arr = json.optJSONArray("flashcards") ?: JSONArray()
             val maxPage = pages.size.coerceAtLeast(1)
 
@@ -682,10 +728,11 @@ class SoraAiService(
                 
                 Score accuracy 0..100, list accurate points, missing key information, any misconceptions, and constructive coaching feedback.
             """.trimIndent()
-            val response = withTimeout(AI_TIMEOUT_MS) {
-                teachBackModel.generateContent(prompt)
-            }
-            val json = JSONObject(response.text ?: error("Empty teach-back response."))
+            val json = JSONObject(
+                generateStructuredTextWithFallback(prompt, "teach_back") {
+                    teachBackModel.generateContent(prompt).text ?: error("Empty teach-back response.")
+                }
+            )
             Result.success(
                 TeachBackFeedback(
                     scorePercent = json.optInt("scorePercent", 0).coerceIn(0, 100),
