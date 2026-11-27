@@ -19,7 +19,7 @@ class AiProviderRouterTest {
     }
 
     @Test
-    fun fallsBackOnTransientFailure() = runBlocking {
+    fun fallsBackOnTransientFailure(): Unit = runBlocking {
         val primary = FakeProvider("primary", "p") {
             throw AiProviderException(AiFailureKind.RATE_LIMITED, "quota")
         }
@@ -32,7 +32,7 @@ class AiProviderRouterTest {
     }
 
     @Test
-    fun doesNotFallbackOnUnknownFailure() = runBlocking {
+    fun doesNotFallbackOnUnknownFailure(): Unit = runBlocking {
         var backupCalled = false
         val primary = FakeProvider("primary", "p") {
             throw AiProviderException(AiFailureKind.UNKNOWN, "unexpected")
@@ -49,14 +49,14 @@ class AiProviderRouterTest {
     }
 
     @Test
-    fun rejectsRouterWithoutProviders() = runBlocking {
+    fun rejectsRouterWithoutProviders(): Unit = runBlocking {
         assertThrows(IllegalArgumentException::class.java) {
             runBlocking { AiProviderRouter(emptyList()).generate(AiTextRequest("test")) }
         }
     }
 
     @Test
-    fun fallsBackOnTimeout() = runBlocking {
+    fun fallsBackOnTimeout(): Unit = runBlocking {
         val primary = FakeProvider("primary", "p") {
             throw AiProviderException(AiFailureKind.TIMEOUT, "timed out")
         }
@@ -69,7 +69,7 @@ class AiProviderRouterTest {
     }
 
     @Test
-    fun doesNotFallbackOnInvalidRequest() = runBlocking {
+    fun doesNotFallbackOnInvalidRequest(): Unit = runBlocking {
         var backupCalled = false
         val primary = FakeProvider("primary", "p") {
             throw AiProviderException(AiFailureKind.INVALID_REQUEST, "bad request")
@@ -85,7 +85,7 @@ class AiProviderRouterTest {
     }
 
     @Test
-    fun cancellationNeverCallsBackup() = runBlocking {
+    fun cancellationNeverCallsBackup(): Unit = runBlocking {
         var backupCalled = false
         val primary = FakeProvider("primary", "p") {
             throw CancellationException("cancelled")
@@ -104,7 +104,7 @@ class AiProviderRouterTest {
 
 
     @Test
-    fun ollamaAdapterPostsRequestAndParsesResponse() = runBlocking {
+    fun ollamaAdapterPostsRequestAndParsesResponse(): Unit = runBlocking {
         val server = MockWebServer()
         server.enqueue(MockResponse().setBody("""{"response":"Adapter works"}"""))
         server.start()
@@ -126,7 +126,7 @@ class AiProviderRouterTest {
 
 
     @Test
-    fun ollamaJsonModeRequestsJsonOutput() = runBlocking {
+    fun ollamaJsonModeRequestsJsonOutput(): Unit = runBlocking {
         val server = MockWebServer()
         server.enqueue(MockResponse().setBody("""{"response":"JSON response"}"""))
         server.start()
@@ -142,7 +142,7 @@ class AiProviderRouterTest {
     }
 
     @Test
-    fun ollamaRateLimitIsTypedForFallback() = runBlocking {
+    fun ollamaRateLimitIsTypedForFallback(): Unit = runBlocking {
         val server = MockWebServer()
         server.enqueue(MockResponse().setResponseCode(429).setBody("rate limit"))
         server.start()
@@ -162,14 +162,14 @@ class AiProviderRouterTest {
     }
 
     @Test
-    fun rejectsPublicHttpOllamaEndpoint() {
+    fun rejectsPublicHttpOllamaEndpoint(): Unit {
         assertThrows(IllegalArgumentException::class.java) {
             OllamaTextProvider(modelId = "model", baseUrl = "http://example.com:11434")
         }
     }
 
     @Test
-    fun acceptsHttpsAndPrivateLanOllamaEndpoints() {
+    fun acceptsHttpsAndPrivateLanOllamaEndpoints(): Unit {
         OllamaTextProvider(modelId = "model", baseUrl = "https://ai.example.com")
         OllamaTextProvider(modelId = "model", baseUrl = "http://192.168.1.10:11434")
         OllamaTextProvider(modelId = "model", baseUrl = "http://127.0.0.1:11434")
@@ -181,21 +181,21 @@ class AiProviderRouterTest {
     }
 
     @Test
-    fun rejectsAddressOutsideLinkLocalRange() {
+    fun rejectsAddressOutsideLinkLocalRange(): Unit {
         assertThrows(IllegalArgumentException::class.java) {
             OllamaTextProvider(modelId = "model", baseUrl = "http://169.253.1.10:11434")
         }
     }
 
     @Test
-    fun rejectsAddressOutsidePrivate172Range() {
+    fun rejectsAddressOutsidePrivate172Range(): Unit {
         assertThrows(IllegalArgumentException::class.java) {
             OllamaTextProvider(modelId = "model", baseUrl = "http://172.32.0.4:11434")
         }
     }
 
     @Test
-    fun rejectsPrivateLookingPublicHostnames() {
+    fun rejectsPrivateLookingPublicHostnames(): Unit {
         assertThrows(IllegalArgumentException::class.java) {
             OllamaTextProvider(modelId = "model", baseUrl = "http://10.attacker.example")
         }
@@ -205,7 +205,7 @@ class AiProviderRouterTest {
     }
 
     @Test
-    fun rejectsEndpointQueryAndFragment() {
+    fun rejectsEndpointQueryAndFragment(): Unit {
         assertThrows(IllegalArgumentException::class.java) {
             OllamaTextProvider(modelId = "model", baseUrl = "https://ai.example.com?token=secret")
         }
@@ -215,7 +215,7 @@ class AiProviderRouterTest {
     }
 
     @Test
-    fun rejectsCredentialsEmbeddedInEndpoint() {
+    fun rejectsCredentialsEmbeddedInEndpoint(): Unit {
         assertThrows(IllegalArgumentException::class.java) {
             OllamaTextProvider(modelId = "model", baseUrl = "https://user:password@ai.example.com")
         }
@@ -223,7 +223,7 @@ class AiProviderRouterTest {
 
 
     @Test
-    fun ollamaClassifiesHttpFailuresWithoutLosingFallbackSemantics() = runBlocking {
+    fun ollamaClassifiesHttpFailuresWithoutLosingFallbackSemantics(): Unit = runBlocking {
         val server = MockWebServer()
         server.enqueue(MockResponse().setResponseCode(401).setBody("unauthorized"))
         server.enqueue(MockResponse().setResponseCode(400).setBody("bad request"))
@@ -252,7 +252,7 @@ class AiProviderRouterTest {
     }
 
     @Test
-    fun ollamaRejectsMalformedResponseJson() = runBlocking {
+    fun ollamaRejectsMalformedResponseJson(): Unit = runBlocking {
         val server = MockWebServer()
         server.enqueue(MockResponse().setBody("not-json"))
         server.start()
@@ -271,7 +271,7 @@ class AiProviderRouterTest {
     }
 
     @Test
-    fun returnsUnavailableWhenAllTransientProvidersFail() = runBlocking {
+    fun returnsUnavailableWhenAllTransientProvidersFail(): Unit = runBlocking {
         val providers = listOf("one", "two").map {
             FakeProvider(it, "model") {
                 throw AiProviderException(AiFailureKind.TEMPORARY_UNAVAILABLE, "down")
