@@ -79,6 +79,7 @@ class SoraViewModel(
 ) : ViewModel() {
 
     private val cloudBookSync = CloudBookSyncManager()
+    private var generationQueueActive = false
 
     private val _bannerMessage = MutableStateFlow<String?>(null)
     val bannerMessage: StateFlow<String?> = _bannerMessage.asStateFlow()
@@ -496,64 +497,70 @@ class SoraViewModel(
 
     fun generateChapterResources(book: Book, chapter: Chapter, difficultyLevel: String = "Standard") {
         viewModelScope.launch {
-            if (_aiBusyLabel.value != null) {
+            if (generationQueueActive) {
                 _bannerMessage.value = "Another AI task is already running. Wait for it to finish first."
                 return@launch
             }
-            val pages = loadPagesForBook(book)
-            if (pages.isEmpty()) {
-                _bannerMessage.value = "No extracted pages available for this book."
-                return@launch
-            }
-            _aiBusyLabel.value = "Generating AI resources for Chapter " + chapter.chapterNumber + "..."
-            _ingestionProgress.value = IngestionProgressState(true, 0, 3, "Starting chapter generation...")
-            val completed = generateAllResourcesForChapterInternal(book, chapter, pages, difficultyLevel)
-            _ingestionProgress.value = IngestionProgressState(false)
-            _aiBusyLabel.value = null
-            _bannerMessage.value = if (completed) {
-                "Chapter " + chapter.chapterNumber + " resources are ready."
-            } else {
-                "Chapter " + chapter.chapterNumber + " is partially generated. Retry to continue missing resources."
+            generationQueueActive = true
+            try {
+                val pages = loadPagesForBook(book)
+                if (pages.isEmpty()) {
+                    _bannerMessage.value = "No extracted pages available for this book."
+                    return@launch
+                }
+                _aiBusyLabel.value = "Generating AI resources for Chapter " + chapter.chapterNumber + "..."
+                _ingestionProgress.value = IngestionProgressState(true, 0, 3, "Starting chapter generation...")
+                val completed = generateAllResourcesForChapterInternal(book, chapter, pages, difficultyLevel)
+                _bannerMessage.value = if (completed) {
+                    "Chapter " + chapter.chapterNumber + " resources are ready."
+                } else {
+                    "Chapter " + chapter.chapterNumber + " is partially generated. Retry to continue missing resources."
+                }
+            } finally {
+                generationQueueActive = false
+                _ingestionProgress.value = IngestionProgressState(false)
+                _aiBusyLabel.value = null
             }
         }
     }
 
     fun generateFullBookResources(book: Book, forceRegenerate: Boolean = false) {
         viewModelScope.launch {
-            if (_aiBusyLabel.value != null) {
+            if (generationQueueActive) {
                 _bannerMessage.value = "Another AI task is already running. Wait for it to finish first."
                 return@launch
             }
-            val pages = loadPagesForBook(book)
-            if (pages.isEmpty()) {
-                _bannerMessage.value = "No extracted pages available. Restore or re-import the book first."
-                return@launch
-            }
-            val chaptersResult = repository.getChapters(book.id)
-            val chapters = chaptersResult.getOrNull().orEmpty().sortedBy { it.chapterNumber }
-            if (chapters.isEmpty()) {
-                _bannerMessage.value = "No chapters are available for full-book generation."
-                return@launch
-            }
-            val chaptersToProcess = if (forceRegenerate) chapters.map { it.copy(
-                intelligenceGenerated = false, questionsGenerated = false, flashcardsGenerated = false,
-                generationStatus = "PENDING", generationError = ""
-            ) } else chapters
-            if (forceRegenerate) {
-                chapters.forEach { chapter ->
-                    repository.updateChapterFields(book.id, chapter.id, mapOf(
-                        "intelligenceGenerated" to false,
-                        "questionsGenerated" to false,
-                        "flashcardsGenerated" to false,
-                        "generationStatus" to "PENDING",
-                        "generationError" to ""
-                    ))
-                }
-            }
-            _aiBusyLabel.value = "Generating resources across " + chapters.size + " chapters..."
-            var completedChapters = 0
-            var failedChapters = 0
+            generationQueueActive = true
             try {
+                val pages = loadPagesForBook(book)
+                if (pages.isEmpty()) {
+                    _bannerMessage.value = "No extracted pages available. Restore or re-import the book first."
+                    return@launch
+                }
+                val chaptersResult = repository.getChapters(book.id)
+                val chapters = chaptersResult.getOrNull().orEmpty().sortedBy { it.chapterNumber }
+                if (chapters.isEmpty()) {
+                    _bannerMessage.value = "No chapters are available for full-book generation."
+                    return@launch
+                }
+                val chaptersToProcess = if (forceRegenerate) chapters.map { it.copy(
+                    intelligenceGenerated = false, questionsGenerated = false, flashcardsGenerated = false,
+                    generationStatus = "PENDING", generationError = ""
+                ) } else chapters
+                if (forceRegenerate) {
+                    chapters.forEach { chapter ->
+                        repository.updateChapterFields(book.id, chapter.id, mapOf(
+                            "intelligenceGenerated" to false,
+                            "questionsGenerated" to false,
+                            "flashcardsGenerated" to false,
+                            "generationStatus" to "PENDING",
+                            "generationError" to ""
+                        ))
+                    }
+                }
+                _aiBusyLabel.value = "Generating resources across " + chapters.size + " chapters..."
+                var completedChapters = 0
+                var failedChapters = 0
                 chaptersToProcess.forEachIndexed { index, chapter ->
                     _ingestionProgress.value = IngestionProgressState(
                         true, index, chapters.size,
@@ -573,6 +580,7 @@ class SoraViewModel(
                     completedChapters.toString() + " chapters completed; " + failedChapters + " need retry. Resume to continue."
                 }
             } finally {
+                generationQueueActive = false
                 _ingestionProgress.value = IngestionProgressState(false)
                 _aiBusyLabel.value = null
             }
