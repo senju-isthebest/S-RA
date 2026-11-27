@@ -6,6 +6,7 @@ import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 import java.io.IOException
@@ -25,9 +26,25 @@ class OllamaTextProvider(
 
     init {
         require(modelId.isNotBlank()) { "Ollama model name is required." }
-        require(baseUrl.startsWith("http://") || baseUrl.startsWith("https://")) {
-            "Ollama endpoint must be an HTTP(S) URL."
+        val parsed = baseUrl.trim().toHttpUrlOrNull()
+            ?: throw IllegalArgumentException("Ollama endpoint must be a valid HTTP(S) URL.")
+        require(parsed.username.isBlank() && parsed.password.isBlank()) {
+            "Credentials must not be embedded in the Ollama endpoint URL."
         }
+        require(parsed.scheme == "https" || isPrivateHttpHost(parsed.host)) {
+            "HTTP is allowed only for localhost or private-network Ollama endpoints. Use HTTPS for remote hosts."
+        }
+    }
+
+    private fun isPrivateHttpHost(host: String): Boolean {
+        val normalized = host.lowercase()
+        if (normalized == "localhost" || normalized == "::1" || normalized.endsWith(".localhost")) return true
+        if (normalized.startsWith("10.") || normalized.startsWith("192.168.")) return true
+        if (normalized.startsWith("172.")) {
+            val second = normalized.substringAfter("172.").substringBefore(".").toIntOrNull()
+            if (second in 16..31) return true
+        }
+        return false
     }
 
     override suspend fun generate(request: AiTextRequest): AiTextResponse =
