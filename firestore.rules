@@ -308,7 +308,7 @@ service cloud.firestore {
                          isValidBook(incoming()) &&
                          incoming().createdAt == existing().createdAt &&
                          incoming().updatedAt is timestamp && incoming().updatedAt <= request.time &&
-                         incoming().diff(existing()).affectedKeys().hasOnly(['title', 'author', 'subjectId', 'subjectName', 'semester', 'folder', 'storagePath', 'sourceSizeBytes', 'sourceSha256', 'syncStatus', 'cloudPageCount', 'pagesSyncStatus', 'totalPages', 'processedPages', 'currentPage', 'failedPages', 'extractionStatus', 'extractionError', 'overview', 'formulaSheet', 'archived', 'masteryScore', 'bookmarkedPages', 'highlightsJson', 'updatedAt']);
+                         incoming().diff(existing()).affectedKeys().hasOnly(['title', 'author', 'subjectId', 'subjectName', 'semester', 'folder', 'fileName', 'storagePath', 'sourceSizeBytes', 'sourceSha256', 'syncStatus', 'cloudPageCount', 'pagesSyncStatus', 'totalPages', 'processedPages', 'currentPage', 'failedPages', 'extractionStatus', 'extractionError', 'overview', 'formulaSheet', 'archived', 'masteryScore', 'bookmarkedPages', 'highlightsJson', 'updatedAt']);
         allow delete: if isOwner(userId) && isValidId(bookId);
 
         match /pages/{pageId} {
