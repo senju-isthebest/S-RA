@@ -1002,8 +1002,11 @@ class SoraViewModel(
                 } else {
                     val grade = ExamEngine.grade(question, answer)
                     score += grade.earnedMarks
-                    if (grade.isFullyCorrect) correct++ else incorrect++
-                    if (grade.isPartiallyCorrect) partial++
+                    when {
+                        grade.isFullyCorrect -> correct++
+                        grade.isPartiallyCorrect -> partial++
+                        else -> incorrect++
+                    }
                     chapterMap[question.chapterNumber] = (previousChapter.first + grade.earnedMarks) to (previousChapter.second + question.marks)
                     difficultyMap[question.difficulty] = (previousDifficulty.first + grade.earnedMarks) to (previousDifficulty.second + question.marks)
                     repository.recordQuestionAttempt(question, grade.isFullyCorrect)
