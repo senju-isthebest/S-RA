@@ -45,10 +45,14 @@ class CloudBookSyncManager(
         contentType: String,
         onProgress: (uploadedBytes: Long, totalBytes: Long) -> Unit = { _, _ -> }
     ): Result<String> {
-        val userId = uid()
-        validateBookId(bookId)
-        require(file.isFile && file.exists()) { "Book source file not found." }
-        require(file.length() in 1..MAX_SOURCE_BYTES) { "File must be smaller than 80 MiB." }
+        val userId = try { uid() } catch (error: Exception) { return Result.failure(error) }
+        try {
+            validateBookId(bookId)
+            require(file.isFile && file.exists()) { "Book source file not found." }
+            require(file.length() in 1..MAX_SOURCE_BYTES) { "File must be smaller than 80 MiB." }
+        } catch (error: Exception) {
+            return Result.failure(error)
+        }
         val allowedTypes = setOf(
             "application/pdf",
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -59,7 +63,7 @@ class CloudBookSyncManager(
             "image/png",
             "image/webp"
         )
-        require(contentType in allowedTypes) { "Unsupported file type." }
+        if (contentType !in allowedTypes) return Result.failure(IllegalArgumentException("Unsupported file type."))
         val ref = sourceRef(userId, bookId)
         val safeName = originalFileName.take(200)
         val hash = sha256(file)
@@ -101,9 +105,9 @@ class CloudBookSyncManager(
     }
 
     suspend fun downloadSourceFile(bookId: String, destination: File): Result<File> {
-        val userId = uid()
-        validateBookId(bookId)
+        val userId = try { uid() } catch (error: Exception) { return Result.failure(error) }
         return try {
+            validateBookId(bookId)
             val meta = bookRef(userId, bookId).get().await()
             require(meta.getString("storagePath") == "users/$userId/books/$bookId/source") {
                 "Cloud file path is missing or does not match the signed-in user."
@@ -131,13 +135,13 @@ class CloudBookSyncManager(
         pages: List<BookPageContent>,
         onProgress: (completedPages: Int, totalPages: Int) -> Unit = { _, _ -> }
     ): Result<Int> {
-        val userId = uid()
-        validateBookId(bookId)
-        require(pages.size <= 5_000) { "Page count exceeds the supported limit." }
-        require(pages.map { it.pageNumber }.distinct().size == pages.size) { "Page numbers must be unique." }
-        require(pages.sumOf { it.text.length.toLong() } <= MAX_TOTAL_TEXT_CHARS) { "Extracted text exceeds the cloud sync limit." }
-        val pagesRef = bookRef(userId, bookId).collection("pages")
+        val userId = try { uid() } catch (error: Exception) { return Result.failure(error) }
         return try {
+            validateBookId(bookId)
+            require(pages.size <= 5_000) { "Page count exceeds the supported limit." }
+            require(pages.map { it.pageNumber }.distinct().size == pages.size) { "Page numbers must be unique." }
+            require(pages.sumOf { it.text.length.toLong() } <= MAX_TOTAL_TEXT_CHARS) { "Extracted text exceeds the cloud sync limit." }
+            val pagesRef = bookRef(userId, bookId).collection("pages")
             bookRef(userId, bookId).update(mapOf("pagesSyncStatus" to "UPLOADING", "updatedAt" to FieldValue.serverTimestamp())).await()
             val existing = pagesRef.get().await()
             val records = pages.flatMap { page ->
@@ -186,9 +190,9 @@ class CloudBookSyncManager(
     }
 
     suspend fun downloadPages(bookId: String): Result<List<BookPageContent>> {
-        val userId = uid()
-        validateBookId(bookId)
+        val userId = try { uid() } catch (error: Exception) { return Result.failure(error) }
         return try {
+            validateBookId(bookId)
             val snapshot = bookRef(userId, bookId).collection("pages").get().await()
             val parts = snapshot.documents.mapNotNull { doc ->
                 val page = doc.getLong("pageNumber")?.toInt() ?: return@mapNotNull null
@@ -223,9 +227,9 @@ class CloudBookSyncManager(
     }
 
     suspend fun deleteCloudBookData(bookId: String): Result<Unit> {
-        val userId = uid()
-        validateBookId(bookId)
+        val userId = try { uid() } catch (error: Exception) { return Result.failure(error) }
         return try {
+            validateBookId(bookId)
             val pages = bookRef(userId, bookId).collection("pages").get().await()
             pages.documents.chunked(MAX_BATCH_OPERATIONS).forEach { chunk ->
                 val batch = firestore.batch()
