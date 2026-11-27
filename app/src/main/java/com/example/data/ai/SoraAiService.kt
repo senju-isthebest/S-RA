@@ -137,6 +137,23 @@ class SoraAiService(
         }
     }
 
+    private suspend fun generateOllamaImageTextFallback(
+        bitmap: Bitmap,
+        prompt: String,
+        taskTag: String
+    ): String {
+        if (ollamaBaseUrl.isBlank() || ollamaVisionModel.isBlank()) {
+            error("No Ollama vision fallback is configured.")
+        }
+        val provider = OllamaTextProvider(modelId = ollamaVisionModel, baseUrl = ollamaBaseUrl)
+        return withTimeout(110_000L) {
+            provider.generateFromImage(
+                bitmap,
+                AiTextRequest(prompt = prompt, taskTag = taskTag)
+            ).text
+        }
+    }
+
     private suspend fun generateOllamaTextFallback(prompt: String, taskTag: String): String {
         if (ollamaBaseUrl.isBlank()) error("No Ollama fallback endpoint is configured.")
         val provider = OllamaTextProvider(modelId = ollamaModel, baseUrl = ollamaBaseUrl)
@@ -748,19 +765,27 @@ class SoraAiService(
                 }
             }
         } catch (timeout: TimeoutCancellationException) {
-            if (pageBitmap != null || accumulated.isNotEmpty() || ollamaBaseUrl.isBlank()) throw timeout
-            Log.w(TAG, "Tutor stream timed out; trying configured Ollama text fallback.")
-            val fallback = generateOllamaTextFallback(conversationText, "tutor")
+            if (accumulated.isNotEmpty() || ollamaBaseUrl.isBlank()) throw timeout
+            Log.w(TAG, "Tutor stream timed out before output; trying configured Ollama fallback.")
+            val fallback = if (pageBitmap != null) {
+                generateOllamaImageTextFallback(pageBitmap, conversationText, "tutor_vision")
+            } else {
+                generateOllamaTextFallback(conversationText, "tutor")
+            }
             accumulated.append(fallback)
             emit(accumulated.toString())
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (failure: Exception) {
-            if (pageBitmap != null || accumulated.isNotEmpty() || ollamaBaseUrl.isBlank() || !isTransientAiFailure(failure)) {
+            if (accumulated.isNotEmpty() || ollamaBaseUrl.isBlank() || !isTransientAiFailure(failure)) {
                 throw failure
             }
-            Log.w(TAG, "Tutor stream failed transiently; trying configured Ollama text fallback.")
-            val fallback = generateOllamaTextFallback(conversationText, "tutor")
+            Log.w(TAG, "Tutor stream failed transiently before output; trying configured Ollama fallback.")
+            val fallback = if (pageBitmap != null) {
+                generateOllamaImageTextFallback(pageBitmap, conversationText, "tutor_vision")
+            } else {
+                generateOllamaTextFallback(conversationText, "tutor")
+            }
             accumulated.append(fallback)
             emit(accumulated.toString())
         }
