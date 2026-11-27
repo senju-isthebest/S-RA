@@ -496,6 +496,10 @@ class SoraViewModel(
 
     fun generateChapterResources(book: Book, chapter: Chapter, difficultyLevel: String = "Standard") {
         viewModelScope.launch {
+            if (_aiBusyLabel.value != null) {
+                _bannerMessage.value = "Another AI task is already running. Wait for it to finish first."
+                return@launch
+            }
             val pages = loadPagesForBook(book)
             if (pages.isEmpty()) {
                 _bannerMessage.value = "No extracted pages available for this book."
@@ -516,6 +520,10 @@ class SoraViewModel(
 
     fun generateFullBookResources(book: Book, forceRegenerate: Boolean = false) {
         viewModelScope.launch {
+            if (_aiBusyLabel.value != null) {
+                _bannerMessage.value = "Another AI task is already running. Wait for it to finish first."
+                return@launch
+            }
             val pages = loadPagesForBook(book)
             if (pages.isEmpty()) {
                 _bannerMessage.value = "No extracted pages available. Restore or re-import the book first."
