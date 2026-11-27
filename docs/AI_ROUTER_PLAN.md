@@ -31,7 +31,7 @@ Android app -> authenticated AI Gateway -> provider adapters
 - Gateway requests must validate Firebase Auth and App Check.
 - Apply per-user quotas, request-size limits, concurrency controls, timeouts, and audit-safe error logging.
 - Do not log book contents or prompts by default.
-- Require HTTPS for remotely hosted provider endpoints. Plain HTTP is allowed only for localhost and private/loopback/link-local IPv4 or IPv6 literals (not hostnames that merely look like private IPs).
+- Require HTTPS for remotely hosted provider endpoints. Plain HTTP is allowed only for localhost, RFC1918/link-local IPv4, and private/loopback/link-local IPv6 literals (not hostnames that merely look like private IPs). Android cleartext is enabled only when the build-time Ollama endpoint uses HTTP.
 - Current Ollama adapter does not support authentication headers; do not use an exposed public endpoint. An authenticated gateway is a future server-side integration.
 
 ## Ollama note
