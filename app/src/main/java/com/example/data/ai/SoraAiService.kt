@@ -323,14 +323,13 @@ class SoraAiService(
     }
 
     suspend fun extractTextFromPageImage(bitmap: Bitmap, pageNumber: Int): Result<String> {
+        val prompt = "Transcribe all educational text, headings, definitions, tables, equations, and diagram labels from textbook page $pageNumber accurately. Preserve structure with markdown headings and bullet points. Do not invent text that is not visible."
         return try {
             val response = withTimeout(AI_TIMEOUT_MS) {
                 generalModel.generateContent(
                     content {
                         image(bitmap)
-                        text(
-                            "Transcribe all educational text, headings, definitions, tables, equations, and diagram labels from textbook page $pageNumber accurately. Preserve structure with markdown headings and bullet points. Do not invent text that is not visible."
-                        )
+                        text(prompt)
                     }
                 )
             }
@@ -338,13 +337,40 @@ class SoraAiService(
             if (text.isBlank()) Result.failure(IllegalStateException("No readable text found on page $pageNumber."))
             else Result.success(text)
         } catch (e: TimeoutCancellationException) {
-            Log.e(TAG, "OCR timeout on page $pageNumber", e)
-            Result.failure(IllegalStateException("OCR timed out on page $pageNumber."))
+            if (ollamaBaseUrl.isBlank()) {
+                Log.e(TAG, "OCR timeout on page $pageNumber", e)
+                Result.failure(IllegalStateException("OCR timed out on page $pageNumber."))
+            } else {
+                runOllamaImageFallback(bitmap, prompt, "ocr_page_$pageNumber")
+            }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            Log.e(TAG, "OCR failed on page $pageNumber", e)
-            Result.failure(e)
+            if (ollamaBaseUrl.isNotBlank() && isTransientAiFailure(e)) {
+                runOllamaImageFallback(bitmap, prompt, "ocr_page_$pageNumber")
+            } else {
+                Log.e(TAG, "OCR failed on page $pageNumber", e)
+                Result.failure(e)
+            }
+        }
+    }
+
+    private suspend fun runOllamaImageFallback(
+        bitmap: Bitmap,
+        prompt: String,
+        taskTag: String
+    ): Result<String> {
+        return try {
+            Log.w(TAG, "$taskTag primary provider failed; trying configured Ollama vision fallback.")
+            val provider = OllamaTextProvider(modelId = ollamaModel, baseUrl = ollamaBaseUrl)
+            val response = withTimeout(110_000L) {
+                provider.generateFromImage(bitmap, AiTextRequest(prompt = prompt, taskTag = taskTag))
+            }
+            Result.success(response.text)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (failure: Exception) {
+            Result.failure(failure)
         }
     }
 
