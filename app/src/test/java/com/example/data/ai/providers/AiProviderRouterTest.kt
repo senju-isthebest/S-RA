@@ -199,6 +199,16 @@ class AiProviderRouterTest {
     }
 
     @Test
+    fun rejectsEndpointQueryAndFragment() {
+        assertThrows(IllegalArgumentException::class.java) {
+            OllamaTextProvider(modelId = "model", baseUrl = "https://ai.example.com?token=secret")
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            OllamaTextProvider(modelId = "model", baseUrl = "https://ai.example.com#fragment")
+        }
+    }
+
+    @Test
     fun rejectsCredentialsEmbeddedInEndpoint() {
         assertThrows(IllegalArgumentException::class.java) {
             OllamaTextProvider(modelId = "model", baseUrl = "https://user:password@ai.example.com")
