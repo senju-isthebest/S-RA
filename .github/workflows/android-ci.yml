@@ -10,6 +10,7 @@ on:
       - feature/ai-provider-router
       - feature/cloud-book-sync
       - feature/full-book-intelligence
+      - feature/exam-engine
   workflow_dispatch:
 
 jobs:
