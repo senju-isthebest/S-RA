@@ -15,12 +15,12 @@
 - Unit tests for fallback, timeout, cancellation, non-fallback failures, all-provider outage, endpoint validation, and Ollama HTTP request/response/error handling using MockWebServer.
 - OkHttp dependency enabled for the Ollama adapter.
 
-## Not integrated yet
+## Deferred / limitations
 - No secured remote AI gateway/server has been deployed. This adapter does not support gateway auth headers, so a public Ollama endpoint is not a safe/usable fallback; use local/private-network endpoints or wait for an authenticated gateway.
 - Fallback support for structured JSON is implemented, but the Ollama path does not enforce the Firebase response schema itself; application JSON parsing/validation and one repair attempt are used.
-- Tutor requests that include a page image can fall back to the configured Ollama vision model if Gemini fails before emitting any output; no provider switch occurs after partial output.
+- Image-context tutor fallback is implemented through Ollama Vision if Gemini fails before emitting any output; no provider switch occurs after partial output.
 - Runtime provider settings UI is not implemented; fallback configuration is build-time only.
-- CI failure was traced to `android-actions/setup-android` attempting to install the obsolete SDK package `tools`. The workflow now installs only the required Android 36 platform/build-tools/platform-tools packages and is manual-trigger-only to prevent notification spam. A successful run has not yet been confirmed.
+- CI failure was traced to `android-actions/setup-android` attempting to install the obsolete SDK package `tools`. The workflow no longer uses `android-actions/setup-android` (which attempted to install obsolete `tools`); it uses the runner's SDK directly, installs only the required Android 36 platform/build-tools/platform-tools packages, and is manual-trigger-only to prevent notification spam. A successful run has not yet been confirmed.
 
 ## Build-time fallback configuration
 - Set `OLLAMA_BASE_URL` to a trusted Ollama endpoint.
@@ -32,6 +32,6 @@
 
 ## Security and reliability
 - Never ship cloud API keys, gateway secrets, or Ollama Cloud credentials in the APK.
-- Ollama supports text and image-input requests through this adapter. A remote provider endpoint must be trusted and protected; plain HTTP is restricted to localhost, loopback, and private/link-local IPv4/IPv6 literals; HTTPS is required for public hosts. This adapter has no auth-header support, so do not use an exposed public Ollama endpoint; only use endpoints intentionally configured for direct client access.
+- Ollama supports text and image-input requests through this adapter. A remote provider endpoint must be trusted and protected; plain HTTP is restricted to localhost, loopback, RFC1918 and link-local IPv4, and private/loopback/link-local IPv6 literals; HTTPS is required for public hosts. Android cleartext is enabled only when the configured Ollama endpoint begins with `http://`. This adapter has no auth-header support, so do not use an exposed public Ollama endpoint; only use endpoints intentionally configured for direct client access.
 - This router does not guarantee availability if providers are offline, out of quota, or unreachable.
-- Image-based tutor streaming is still Gemini-only. Ollama JSON mode does not enforce the full Firebase schema; application-level validation is required.
+- Ollama JSON mode does not enforce the full Firebase schema; application-level validation is required.
