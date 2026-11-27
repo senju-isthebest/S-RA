@@ -45,13 +45,13 @@ android {
       isCrunchPngs = false
       isMinifyEnabled = false
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-      // Do not remove or modify this signingConfig assignment. It is necessary for Android apps in
-      // AI Studio.
+      // Do not remove or modify this signingConfig assignment. It is necessary for building and
+      // updating Android apps in AI Studio.
       signingConfig = signingConfigs.getByName("release")
     }
     debug {
-      // Do not remove or modify this signingConfig assignment. It is necessary for Android apps in
-      // AI Studio.
+      // Do not remove or modify this signingConfig assignment. It is necessary for building,
+      // installing, and updating Android apps in AI Studio.
       signingConfig = signingConfigs.getByName("debugConfig")
     }
   }
@@ -115,9 +115,9 @@ dependencies {
   implementation(libs.firebase.appcheck.debug)
   implementation(libs.kotlinx.coroutines.android)
   implementation(libs.kotlinx.coroutines.core)
+  implementation(libs.okhttp)
   // implementation(libs.logging.interceptor)
   // implementation(libs.moshi.kotlin)
-  // implementation(libs.okhttp)
   // implementation(libs.play.services.location)
   // implementation(libs.retrofit)
   testImplementation(libs.androidx.compose.ui.test.junit4)
