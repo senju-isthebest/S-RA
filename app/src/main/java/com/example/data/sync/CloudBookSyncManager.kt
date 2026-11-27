@@ -136,6 +136,7 @@ class CloudBookSyncManager(
         require(pages.size <= 5_000) { "Page count exceeds the supported limit." }
         val pagesRef = bookRef(userId, bookId).collection("pages")
         return try {
+            bookRef(userId, bookId).update(mapOf("pagesSyncStatus" to "UPLOADING", "updatedAt" to FieldValue.serverTimestamp())).await()
             val existing = pagesRef.get().await()
             val records = pages.flatMap { page ->
                 require(page.pageNumber in 1..5000) { "Invalid page number." }
@@ -170,12 +171,13 @@ class CloudBookSyncManager(
             }
             pages.indices.forEach { index -> onProgress(index + 1, pages.size) }
             bookRef(userId, bookId).update(
-                mapOf("cloudPageCount" to pages.size, "updatedAt" to FieldValue.serverTimestamp())
+                mapOf("cloudPageCount" to pages.size, "pagesSyncStatus" to "SYNCED", "updatedAt" to FieldValue.serverTimestamp())
             ).await()
             Result.success(records.size)
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (error: Exception) {
+            runCatching { bookRef(userId, bookId).update(mapOf("pagesSyncStatus" to "FAILED", "updatedAt" to FieldValue.serverTimestamp())).await() }
             Result.failure(error)
         }
     }
@@ -191,10 +193,15 @@ class CloudBookSyncManager(
                 val text = doc.getString("text") ?: ""
                 val method = doc.getString("extractionMethod") ?: "TEXT"
                 val error = doc.getString("error")
-                Triple(page, index, PagePart(text, method, error))
+                val count = doc.getLong("chunkCount")?.toInt() ?: 1
+                Triple(page, index, PagePart(count, text, method, error))
             }
             val result = parts.groupBy { it.first }.toSortedMap().map { (pageNumber, pageParts) ->
                 val sorted = pageParts.sortedBy { it.second }
+                val expectedCount = sorted.firstOrNull()?.third?.count ?: 1
+                require(sorted.size == expectedCount && sorted.map { it.second } == (0 until expectedCount).toList()) {
+                    "Cloud page text is incomplete."
+                }
                 BookPageContent(
                     pageNumber = pageNumber,
                     text = sorted.joinToString("") { it.third.text },
@@ -229,7 +236,7 @@ class CloudBookSyncManager(
         }
     }
 
-    private data class PagePart(val text: String, val method: String, val error: String?)
+    private data class PagePart(val count: Int, val text: String, val method: String, val error: String?)
 
     private fun sha256(file: File): String {
         val digest = MessageDigest.getInstance("SHA-256")
