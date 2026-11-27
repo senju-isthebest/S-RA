@@ -14,7 +14,7 @@ class OllamaVisionAdapterTest {
         server.start()
         try {
             val provider = OllamaTextProvider("vision-model", server.url("/").toString())
-            val response = provider.generateFromImageBytes(byteArrayOf(1, 2, 3), AiTextRequest(prompt = "Read text"))
+            val response = provider.generateFromImageBase64("AQID", AiTextRequest(prompt = "Read text"))
             val payload = org.json.JSONObject(server.takeRequest().body.readUtf8())
             assertEquals(1, payload.getJSONArray("images").length())
             assertEquals("AQID", payload.getJSONArray("images").getString(0))
