@@ -45,11 +45,10 @@ class AiProviderRouterTest {
             backupCalled = true
             AiTextResponse("should not run", "backup", "b")
         }
-        try {
-            AiProviderRouter(listOf(primary, backup)).generate(AiTextRequest("test"))
-        } catch (_: AiProviderException) {
-            // Expected: unknown failures are not retried.
+        val error = assertThrows(AiProviderException::class.java) {
+            runBlocking { AiProviderRouter(listOf(primary, backup)).generate(AiTextRequest("test")) }
         }
+        assertEquals(AiFailureKind.UNKNOWN, error.kind)
         assertEquals(false, backupCalled)
     }
 
