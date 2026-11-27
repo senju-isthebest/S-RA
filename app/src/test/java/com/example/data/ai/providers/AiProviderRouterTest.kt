@@ -104,7 +104,7 @@ class AiProviderRouterTest {
     @Test
     fun ollamaJsonModeRequestsJsonOutput() = runBlocking {
         val server = MockWebServer()
-        server.enqueue(MockResponse().setBody("""{"response":"{\\"answer\\":42}"}"""))
+        server.enqueue(MockResponse().setBody("""{"response":"JSON response"}"""))
         server.start()
         try {
             val provider = OllamaTextProvider("test-model", server.url("/").toString())
