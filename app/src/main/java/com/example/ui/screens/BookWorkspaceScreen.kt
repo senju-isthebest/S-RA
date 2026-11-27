@@ -138,6 +138,7 @@ fun BookWorkspaceScreen(
                         questionsCount = bookQuestions.size,
                         flashcardsCount = bookFlashcards.size,
                         onRetryFailed = { viewModel.retryFailedPages(book) },
+                        onGenerateFullBook = { force -> viewModel.generateFullBookResources(book, force) },
                         onGoToTab = { tabName -> selectedTabIndex = WORKSPACE_TABS.indexOf(tabName).coerceAtLeast(0) },
                         onExportFullPack = {
                             val summaryBody = buildString {
@@ -324,6 +325,7 @@ private fun BookOverviewPanel(
     questionsCount: Int,
     flashcardsCount: Int,
     onRetryFailed: () -> Unit,
+    onGenerateFullBook: (Boolean) -> Unit,
     onGoToTab: (String) -> Unit,
     onExportFullPack: () -> Unit
 ) {
@@ -346,6 +348,23 @@ private fun BookOverviewPanel(
                     Spacer(Modifier.height(10.dp))
                     Button(onClick = onRetryFailed, colors = ButtonDefaults.buttonColors(containerColor = SoraWarning)) {
                         Text("Retry ${book.failedPages.size} Failed Page(s)")
+                    }
+                }
+            }
+        }
+
+        if (chapters.isNotEmpty()) {
+            item {
+                val completeCount = chapters.count { it.intelligenceGenerated && it.questionsGenerated && it.flashcardsGenerated }
+                val allComplete = completeCount == chapters.size
+                SoraSurfaceCard(accentBorder = SoraViolet, modifier = Modifier.fillMaxWidth()) {
+                    Text("Full-book AI generation", style = MaterialTheme.typography.titleSmall)
+                    Text(completeCount.toString() + " of " + chapters.size + " chapters have summaries, questions and flashcards.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.height(8.dp))
+                    Button(onClick = { onGenerateFullBook(allComplete) }, modifier = Modifier.fillMaxWidth()) {
+                        Icon(Icons.Rounded.AutoAwesome, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text(if (allComplete) "Regenerate all chapters" else "Generate / Resume all chapters")
                     }
                 }
             }
@@ -414,16 +433,18 @@ private fun ContentsPanel(
                     accentBorder = if (isSelected) SoraViolet else null,
                     modifier = Modifier.fillMaxWidth()
                 ) {
+                    val generatedCount = listOf(ch.intelligenceGenerated, ch.questionsGenerated, ch.flashcardsGenerated).count { it }
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         SoraMasteryRing(progressPercent = ch.masteryScore.toInt(), size = 48.dp)
                         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                             Text("Chapter ${ch.chapterNumber}: ${ch.title}", style = MaterialTheme.typography.titleSmall)
+                            Text("AI resources: " + generatedCount + "/3 • " + ch.generationStatus, style = MaterialTheme.typography.labelSmall, color = if (generatedCount == 3) SoraSuccess else SoraWarning)
                             Text("Pages ${ch.startPage}-${ch.endPage} • Est. ${ch.estimatedStudyMinutes}m • ${ch.masteryStatus}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         Column(horizontalAlignment = Alignment.End) {
                             TextButton(onClick = { onOpenReaderAt(ch.startPage.toInt()) }) { Text("Read") }
                             TextButton(onClick = { onSelectChapter(ch); onGenerateChapter(ch) }) {
-                                Text(if (ch.quickSummary.isBlank()) "Analyze" else "Refresh")
+                                Text(if (generatedCount == 0) "Analyze" else "Resume")
                             }
                         }
                     }

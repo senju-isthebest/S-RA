@@ -79,6 +79,7 @@ class SoraViewModel(
 ) : ViewModel() {
 
     private val cloudBookSync = CloudBookSyncManager()
+    private var generationQueueActive = false
 
     private val _bannerMessage = MutableStateFlow<String?>(null)
     val bannerMessage: StateFlow<String?> = _bannerMessage.asStateFlow()
@@ -486,16 +487,115 @@ class SoraViewModel(
         }
     }
 
+    private suspend fun loadPagesForBook(book: Book): List<BookPageContent> {
+        val localPages = documentProcessor.loadPages(book.localBookId)
+        if (localPages.isNotEmpty()) return localPages
+        val cloudPages = cloudBookSync.downloadPages(book.id).getOrNull().orEmpty()
+        if (cloudPages.isNotEmpty()) documentProcessor.savePages(book.localBookId, cloudPages)
+        return cloudPages
+    }
+
     fun generateChapterResources(book: Book, chapter: Chapter, difficultyLevel: String = "Standard") {
         viewModelScope.launch {
-            val pages = documentProcessor.loadPages(book.localBookId)
-            if (pages.isEmpty()) {
-                _bannerMessage.value = "No extracted pages available for this book."
+            if (generationQueueActive || _aiBusyLabel.value != null) {
+                _bannerMessage.value = "Another AI task is already running. Wait for it to finish first."
                 return@launch
             }
-            _aiBusyLabel.value = "Generating AI summaries, concept map & questions for Ch. ${chapter.chapterNumber}..."
-            generateAllResourcesForChapterInternal(book, chapter, pages, difficultyLevel)
-            _aiBusyLabel.value = null
+            generationQueueActive = true
+            _aiBusyLabel.value = "Preparing chapter generation..."
+            try {
+                val pages = loadPagesForBook(book)
+                if (pages.isEmpty()) {
+                    _bannerMessage.value = "No extracted pages available for this book."
+                    return@launch
+                }
+                _aiBusyLabel.value = "Generating AI resources for Chapter " + chapter.chapterNumber + "..."
+                _ingestionProgress.value = IngestionProgressState(true, 0, 3, "Starting chapter generation...")
+                val completed = generateAllResourcesForChapterInternal(book, chapter, pages, difficultyLevel)
+                _bannerMessage.value = if (completed) {
+                    "Chapter " + chapter.chapterNumber + " resources are ready."
+                } else {
+                    "Chapter " + chapter.chapterNumber + " is partially generated. Retry to continue missing resources."
+                }
+            } finally {
+                generationQueueActive = false
+                _ingestionProgress.value = IngestionProgressState(false)
+                _aiBusyLabel.value = null
+            }
+        }
+    }
+
+    fun generateFullBookResources(book: Book, forceRegenerate: Boolean = false) {
+        viewModelScope.launch {
+            if (generationQueueActive || _aiBusyLabel.value != null) {
+                _bannerMessage.value = "Another AI task is already running. Wait for it to finish first."
+                return@launch
+            }
+            generationQueueActive = true
+            _aiBusyLabel.value = "Preparing full-book generation..."
+            try {
+                val pages = loadPagesForBook(book)
+                if (pages.isEmpty()) {
+                    _bannerMessage.value = "No extracted pages available. Restore or re-import the book first."
+                    return@launch
+                }
+                val chaptersResult = repository.getChapters(book.id)
+                val chapters = chaptersResult.getOrNull().orEmpty().sortedBy { it.chapterNumber }
+                if (chapters.isEmpty()) {
+                    _bannerMessage.value = "No chapters are available for full-book generation."
+                    return@launch
+                }
+                val chaptersToProcess = if (forceRegenerate) chapters.map { it.copy(
+                    intelligenceGenerated = false, questionsGenerated = false, flashcardsGenerated = false,
+                    generationStatus = "PENDING", generationError = ""
+                ) } else chapters
+                if (forceRegenerate) {
+                    chapters.forEach { chapter ->
+                        repository.updateChapterFields(book.id, chapter.id, mapOf(
+                            "intelligenceGenerated" to false,
+                            "questionsGenerated" to false,
+                            "flashcardsGenerated" to false,
+                            "generationStatus" to "PENDING",
+                            "generationError" to ""
+                        ))
+                    }
+                }
+                _aiBusyLabel.value = "Generating resources across " + chapters.size + " chapters..."
+                var completedChapters = 0
+                var failedChapters = 0
+                chaptersToProcess.forEachIndexed { index, chapter ->
+                    _ingestionProgress.value = IngestionProgressState(
+                        true, index, chapters.size,
+                        "Chapter " + chapter.chapterNumber + "/" + chapters.size + ": " + chapter.title
+                    )
+                    val complete = try {
+                        generateAllResourcesForChapterInternal(book, chapter, pages, forceGenerate = forceRegenerate)
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (error: Exception) {
+                        repository.updateChapterFields(book.id, chapter.id, mapOf(
+                            "generationStatus" to "FAILED",
+                            "generationError" to (error.localizedMessage ?: "Unexpected generation error").take(500)
+                        ))
+                        false
+                    }
+                    if (complete) completedChapters++ else failedChapters++
+                    _ingestionProgress.value = IngestionProgressState(
+                        true, index + 1, chapters.size,
+                        if (complete) "Completed Chapter " + chapter.chapterNumber else "Chapter " + chapter.chapterNumber + " needs retry"
+                    )
+                    if (index < chapters.lastIndex) delay(1_500L)
+                }
+                _bannerMessage.value = if (failedChapters == 0) {
+                    "Full-book generation completed for " + completedChapters + " chapters."
+                } else {
+                    completedChapters.toString() + " chapters completed; " + failedChapters + " need retry. Resume to continue."
+                }
+            } finally {
+                generationQueueActive = false
+                _ingestionProgress.value = IngestionProgressState(false)
+                _aiBusyLabel.value = null
+            }
         }
     }
 
@@ -503,38 +603,126 @@ class SoraViewModel(
         book: Book,
         chapter: Chapter,
         pages: List<BookPageContent>,
-        difficultyLevel: String = "Standard"
-    ) {
-        val intelRes = aiService.generateChapterIntelligence(book.id, chapter, pages, difficultyLevel)
-        intelRes.onSuccess { (enrichedChapter, glossary) ->
-            repository.saveChapter(book.id, enrichedChapter)
-            if (glossary.isNotEmpty()) {
-                repository.addGlossaryEntries(book.id, glossary)
-            }
-        }.onFailure {
-            _bannerMessage.value = "Chapter intelligence error: ${it.localizedMessage}"
+        difficultyLevel: String = "Standard",
+        forceGenerate: Boolean = false
+    ): Boolean {
+        if (chapter.id.isBlank()) return false
+        val existingQuestions = if (forceGenerate) emptyList() else questions.value.filter { it.bookId == book.id && it.chapterNumber == chapter.chapterNumber && it.aiGenerated }
+        val existingFlashcards = if (forceGenerate) emptyList() else flashcards.value.filter { it.bookId == book.id && it.chapterNumber == chapter.chapterNumber && it.deckName.startsWith("Ch. " + chapter.chapterNumber + ":") }
+        var intelligenceDone = chapter.intelligenceGenerated || (!forceGenerate && chapter.quickSummary.isNotBlank() && chapter.detailedSummary.isNotBlank())
+        var questionsDone = chapter.questionsGenerated || existingQuestions.size >= 8
+        var flashcardsDone = chapter.flashcardsGenerated || existingFlashcards.size >= 8
+        val questionOffset = if (forceGenerate) 0 else existingQuestions.size
+        val flashcardOffset = if (forceGenerate) 0 else existingFlashcards.size
+        val attempts = (chapter.generationAttempts + 1L).coerceAtMost(100L)
+        val errors = mutableListOf<String>()
+
+        repository.updateChapterFields(book.id, chapter.id, mapOf(
+            "generationStatus" to "PROCESSING",
+            "generationAttempts" to attempts,
+            "generationError" to ""
+        ))
+
+        if (!intelligenceDone) {
+            _ingestionProgress.value = _ingestionProgress.value.copy(statusLabel = "Generating Chapter " + chapter.chapterNumber + " intelligence...")
+            val result = aiService.generateChapterIntelligence(book.id, chapter, pages, difficultyLevel)
+            result.onSuccess { (enrichedChapter, glossary) ->
+                val generatedGlossary = glossary.mapIndexed { index, entry ->
+                    entry.copy(id = "gen_" + book.id + "_ch" + chapter.chapterNumber + "_g" + (index + 1), bookId = book.id)
+                }
+                val chapterSaved = repository.saveChapter(
+                    book.id,
+                    enrichedChapter.copy(
+                        id = chapter.id,
+                        intelligenceGenerated = true,
+                        generationAttempts = attempts,
+                        generationStatus = "PROCESSING",
+                        generationError = ""
+                    )
+                )
+                val glossarySaved = if (chapterSaved.isSuccess) repository.addGlossaryEntries(book.id, generatedGlossary) else Result.failure(chapterSaved.exceptionOrNull() ?: IllegalStateException("Chapter save failed"))
+                if (chapterSaved.isSuccess && glossarySaved.isSuccess) {
+                    intelligenceDone = true
+                    repository.updateChapterFields(book.id, chapter.id, mapOf("intelligenceGenerated" to true))
+                } else {
+                    errors += chapterSaved.exceptionOrNull()?.localizedMessage ?: glossarySaved.exceptionOrNull()?.localizedMessage ?: "Could not save chapter intelligence."
+                }
+            }.onFailure { errors += "Intelligence: " + (it.localizedMessage ?: "generation failed") }
         }
 
-        val qRes = aiService.generateQuestionsForChapter(
-            bookId = book.id,
-            bookTitle = book.title,
-            chapter = chapter,
-            pages = pages,
-            requestedTypes = listOf("MCQ", "TRUE_FALSE", "FILL_BLANK", "SHORT_ANSWER", "APPLICATION", "COMPARE_CONTRAST", "CALCULATION"),
-            count = 8
-        )
-        qRes.onSuccess { generated ->
-            repository.addQuestions(generated)
-        }.onFailure {
-            _bannerMessage.value = "Question generation error: ${it.localizedMessage}"
+        if (!questionsDone) {
+            delay(900L)
+            _ingestionProgress.value = _ingestionProgress.value.copy(statusLabel = "Generating Chapter " + chapter.chapterNumber + " questions...")
+            val requestedQuestionCount = (8 - questionOffset).coerceAtLeast(1)
+            val result = aiService.generateQuestionsForChapter(
+                bookId = book.id,
+                bookTitle = book.title,
+                chapter = chapter,
+                pages = pages,
+                requestedTypes = listOf("MCQ", "TRUE_FALSE", "FILL_BLANK", "SHORT_ANSWER", "APPLICATION", "COMPARE_CONTRAST", "CALCULATION"),
+                count = requestedQuestionCount
+            )
+            result.onSuccess { generated ->
+                val stableQuestions = generated.take(requestedQuestionCount).mapIndexed { index, question ->
+                    question.copy(id = "gen_" + book.id + "_ch" + chapter.chapterNumber + "_q" + (questionOffset + index + 1))
+                }
+                val saved = repository.addQuestions(stableQuestions)
+                if (saved.isSuccess) {
+                    questionsDone = questionOffset + stableQuestions.size >= 8
+                    if (questionsDone) {
+                        repository.updateChapterFields(book.id, chapter.id, mapOf("questionsGenerated" to true))
+                    } else {
+                        errors += "Generated " + stableQuestions.size + " of " + requestedQuestionCount + " requested questions; resume to fill the remaining slots."
+                    }
+                } else {
+                    errors += saved.exceptionOrNull()?.localizedMessage ?: "Could not save generated questions."
+                }
+            }.onFailure { errors += "Questions: " + (it.localizedMessage ?: "generation failed") }
         }
 
-        val fcRes = aiService.generateFlashcardsForChapter(book.id, chapter, pages, count = 8)
-        fcRes.onSuccess { cards ->
-            repository.addFlashcards(cards)
-        }.onFailure {
-            _bannerMessage.value = "Flashcard generation error: ${it.localizedMessage}"
+        if (!flashcardsDone) {
+            delay(900L)
+            _ingestionProgress.value = _ingestionProgress.value.copy(statusLabel = "Generating Chapter " + chapter.chapterNumber + " flashcards...")
+            val requestedFlashcardCount = (8 - flashcardOffset).coerceAtLeast(1)
+            val result = aiService.generateFlashcardsForChapter(book.id, chapter, pages, count = requestedFlashcardCount)
+            result.onSuccess { generated ->
+                val stableCards = generated.take(requestedFlashcardCount).mapIndexed { index, card ->
+                    card.copy(id = "gen_" + book.id + "_ch" + chapter.chapterNumber + "_f" + (flashcardOffset + index + 1))
+                }
+                val saved = repository.addFlashcards(stableCards)
+                if (saved.isSuccess) {
+                    flashcardsDone = flashcardOffset + stableCards.size >= 8
+                    if (flashcardsDone) {
+                        repository.updateChapterFields(book.id, chapter.id, mapOf("flashcardsGenerated" to true))
+                    } else {
+                        errors += "Generated " + stableCards.size + " of " + requestedFlashcardCount + " requested flashcards; resume to fill the remaining slots."
+                    }
+                } else {
+                    errors += saved.exceptionOrNull()?.localizedMessage ?: "Could not save generated flashcards."
+                }
+            }.onFailure { errors += "Flashcards: " + (it.localizedMessage ?: "generation failed") }
         }
+
+        val allDone = intelligenceDone && questionsDone && flashcardsDone
+        val anyDone = intelligenceDone || questionsDone || flashcardsDone
+        val status = when {
+            allDone -> "COMPLETE"
+            anyDone -> "PARTIAL"
+            else -> "FAILED"
+        }
+        val finalSave = repository.updateChapterFields(book.id, chapter.id, mapOf(
+            "intelligenceGenerated" to intelligenceDone,
+            "questionsGenerated" to questionsDone,
+            "flashcardsGenerated" to flashcardsDone,
+            "generationStatus" to status,
+            "generationAttempts" to attempts,
+            "generationError" to errors.joinToString("; ").take(500)
+        ))
+        if (finalSave.isFailure) {
+            _bannerMessage.value = finalSave.exceptionOrNull()?.localizedMessage ?: "Could not persist chapter generation status."
+            return false
+        }
+        return allDone
     }
 
     fun generateMoreQuestions(

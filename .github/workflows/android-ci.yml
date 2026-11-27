@@ -9,6 +9,7 @@ on:
     branches:
       - feature/ai-provider-router
       - feature/cloud-book-sync
+      - feature/full-book-intelligence
   workflow_dispatch:
 
 jobs:

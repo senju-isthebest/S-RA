@@ -164,6 +164,25 @@ class SoraRepository(
     fun observeChapters(uid: String, bookId: String): Flow<List<Chapter>> =
         observeCollection(uid, "books", Chapter::class.java, "$bookId/chapters")
 
+    suspend fun getChapters(bookId: String): Result<List<Chapter>> {
+        var path = "users/unauth/books/$bookId/chapters"
+        return try {
+            val uid = requireUserId()
+            val collection = userDoc(uid).collection("books").document(bookId).collection("chapters")
+            path = collection.path
+            val snapshot = collection.get().await()
+            Result.success(snapshot.documents.mapNotNull { document ->
+                document.toObject(Chapter::class.java)?.copy(id = document.id)
+            }.sortedBy { it.chapterNumber })
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            handleFirestoreError(e, OperationType.GET, path)
+            Result.failure(e)
+        }
+    }
+
+
     fun observeGlossary(uid: String, bookId: String): Flow<List<GlossaryEntry>> =
         observeCollection(uid, "books", GlossaryEntry::class.java, "$bookId/glossary")
 
@@ -300,8 +319,11 @@ listOf("questions", "flashcards", "notes", "plannerTasks", "focusSessions", "tut
             path = "users/$uid/books/$bookId/glossary"
             val batch = db.batch()
             entries.forEach { entry ->
-                val ref = col.document()
-                batch.set(ref, entry.copy(bookId = bookId).toCreateMap())
+                val ref = if (entry.id.isBlank()) col.document() else col.document(entry.id)
+                val payload = entry.copy(bookId = bookId).toCreateMap().toMutableMap()
+                if (entry.id.isNotBlank() && ref.get().await().exists()) payload.remove("createdAt")
+                if (entry.id.isNotBlank()) batch.set(ref, payload, com.google.firebase.firestore.SetOptions.merge())
+                else batch.set(ref, payload)
             }
             batch.commit().await()
             Result.success(Unit)
@@ -323,7 +345,16 @@ listOf("questions", "flashcards", "notes", "plannerTasks", "focusSessions", "tut
             path = "users/$uid/questions"
             val batch = db.batch()
             questions.forEach { q ->
-                batch.set(col.document(), q.toCreateMap())
+                val ref = if (q.id.isBlank()) col.document() else col.document(q.id)
+                val payload = q.toCreateMap().toMutableMap()
+                if (q.id.isNotBlank() && ref.get().await().exists()) {
+                    listOf("attempts", "correctCount", "incorrectCount", "lastAnsweredCorrect", "mistakeResolved",
+                        "bookmarked", "hidden", "reported", "reportReason", "personalNote", "collectionName", "createdAt")
+                        .forEach { payload.remove(it) }
+                    batch.set(ref, payload, com.google.firebase.firestore.SetOptions.merge())
+                } else {
+                    batch.set(ref, payload)
+                }
             }
             batch.commit().await()
             Result.success(Unit)
@@ -367,7 +398,15 @@ listOf("questions", "flashcards", "notes", "plannerTasks", "focusSessions", "tut
             path = "users/$uid/flashcards"
             val batch = db.batch()
             cards.forEach { fc ->
-                batch.set(col.document(), fc.toCreateMap())
+                val ref = if (fc.id.isBlank()) col.document() else col.document(fc.id)
+                val payload = fc.toCreateMap().toMutableMap()
+                if (fc.id.isNotBlank() && ref.get().await().exists()) {
+                    listOf("bookmarked", "easeFactor", "intervalDays", "repetitions", "nextReviewAtMillis", "lastRating", "createdAt")
+                        .forEach(payload::remove)
+                    batch.set(ref, payload, com.google.firebase.firestore.SetOptions.merge())
+                } else {
+                    batch.set(ref, payload)
+                }
             }
             batch.commit().await()
             Result.success(Unit)
