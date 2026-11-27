@@ -8,6 +8,7 @@ on:
   push:
     branches:
       - feature/ai-provider-router
+      - feature/cloud-book-sync
   workflow_dispatch:
 
 jobs:
