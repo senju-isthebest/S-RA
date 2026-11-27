@@ -3,6 +3,7 @@ package com.example.data.ai.providers
 import com.google.firebase.Firebase
 import com.google.firebase.ai.ai
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withTimeout
 
 class GeminiTextProvider(
@@ -29,6 +30,8 @@ class GeminiTextProvider(
                 throw AiProviderException(AiFailureKind.INVALID_RESPONSE, "Gemini returned empty text.")
             }
             return AiTextResponse(text, providerId, modelId)
+        } catch (timeout: TimeoutCancellationException) {
+            throw AiProviderException(AiFailureKind.TIMEOUT, "Gemini request timed out.", timeout)
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (failure: AiProviderException) {
