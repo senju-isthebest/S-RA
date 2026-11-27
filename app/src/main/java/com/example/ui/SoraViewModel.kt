@@ -218,13 +218,13 @@ class SoraViewModel(
             val localPages = documentProcessor.loadPages(book.localBookId)
             if (localPages.isNotEmpty()) {
                 _loadedBookPages.value = localPages
-                return@launch
-            }
-            _loadedBookPages.value = emptyList()
-            val cloudPages = cloudBookSync.downloadPages(book.id).getOrNull()
-            if (!cloudPages.isNullOrEmpty()) {
-                documentProcessor.savePages(book.localBookId, cloudPages)
-                _loadedBookPages.value = cloudPages
+            } else {
+                _loadedBookPages.value = emptyList()
+                val cloudPages = cloudBookSync.downloadPages(book.id).getOrNull()
+                if (!cloudPages.isNullOrEmpty()) {
+                    documentProcessor.savePages(book.localBookId, cloudPages)
+                    _loadedBookPages.value = cloudPages
+                }
             }
             val localSource = documentProcessor.getLocalFile(book.localBookId, book.fileName)
             if (!localSource.exists() && book.storagePath.isNotBlank()) {
