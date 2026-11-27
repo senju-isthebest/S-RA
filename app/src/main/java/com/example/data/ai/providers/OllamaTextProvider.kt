@@ -105,14 +105,13 @@ class OllamaTextProvider(
         return payload
     }
 
-    private fun executePayload(payload: JSONObject): AiTextResponse {
+    private fun executePayload(payload: JSONObject): AiTextResponse = try {
         val httpRequest = Request.Builder()
             .url(endpointBaseUrl + "/api/generate")
             .post(payload.toString().toRequestBody("application/json".toMediaType()))
             .build()
 
-        try {
-            client.newCall(httpRequest).execute().use { response ->
+        client.newCall(httpRequest).execute().use { response ->
                 val body = response.body?.string().orEmpty()
                 if (!response.isSuccessful) {
                     val kind = when (response.code) {
@@ -132,9 +131,9 @@ class OllamaTextProvider(
                 if (text.isBlank()) {
                     throw AiProviderException(AiFailureKind.INVALID_RESPONSE, "Ollama returned empty text.")
                 }
-                AiTextResponse(text, providerId, modelId)
-            }
-        } catch (cancelled: CancellationException) {
+            AiTextResponse(text, providerId, modelId)
+        }
+    } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (e: AiProviderException) {
             throw e
@@ -142,7 +141,6 @@ class OllamaTextProvider(
             throw AiProviderException(AiFailureKind.TIMEOUT, "Ollama request timed out.", e)
         } catch (e: IOException) {
             throw AiProviderException(AiFailureKind.NETWORK, "Could not reach Ollama.", e)
-        }
     }
 
     companion object {
