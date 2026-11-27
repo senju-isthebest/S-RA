@@ -74,7 +74,23 @@ jobs:
           JSON
 
       - name: Run unit tests
-        run: gradle testDebugUnitTest
+        run: |
+          for attempt in 1 2 3; do
+            gradle --no-configuration-cache testDebugUnitTest && exit 0
+            if [ "$attempt" -lt 3 ]; then
+              echo "Gradle test attempt $attempt failed; retrying after Maven throttling/backoff..."
+              sleep $((attempt * 20))
+            fi
+          done
+          exit 1
 
       - name: Assemble debug APK
-        run: gradle assembleDebug
+        run: |
+          for attempt in 1 2 3; do
+            gradle --no-configuration-cache assembleDebug && exit 0
+            if [ "$attempt" -lt 3 ]; then
+              echo "Gradle build attempt $attempt failed; retrying..."
+              sleep $((attempt * 20))
+            fi
+          done
+          exit 1
