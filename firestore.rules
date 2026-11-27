@@ -312,8 +312,7 @@ service cloud.firestore {
         allow delete: if isOwner(userId) && isValidId(bookId);
 
         match /pages/{pageId} {
-          allow get: if isOwner(userId) && isValidId(bookId) &&
-                        pageId.matches('^p[0-9]{5}_c[0-9]{3}
+          allow get: if isOwner(userId) && isValidId(bookId) && pageId.matches('^p[0-9]{5}_c[0-9]{3}
           allow get: if isOwner(userId) && isValidId(bookId) && isValidId(chapterId);
           allow list: if isOwner(userId) && isValidId(bookId);
           allow create: if isOwner(userId) && isValidId(bookId) && isValidId(chapterId) &&
@@ -679,8 +678,7 @@ service cloud.firestore {
                         isBoundedString(incoming().extractionMethod, 1, 40) &&
                         (!('error' in incoming()) || isBoundedString(incoming().error, 0, 500)) &&
                         incoming().updatedAt is timestamp && incoming().updatedAt <= request.time;
-          allow delete: if isOwner(userId) && isValidId(bookId) &&
-                        pageId.matches('^p[0-9]{5}_c[0-9]{3}
+          allow delete: if isOwner(userId) && isValidId(bookId) && pageId.matches('^p[0-9]{5}_c[0-9]{3}
           allow get: if isOwner(userId) && isValidId(bookId) && isValidId(chapterId);
           allow list: if isOwner(userId) && isValidId(bookId);
           allow create: if isOwner(userId) && isValidId(bookId) && isValidId(chapterId) &&
@@ -858,7 +856,6 @@ service cloud.firestore {
 }
 );
         }
-
         match /chapters/{chapterId} {
           allow get: if isOwner(userId) && isValidId(bookId) && isValidId(chapterId);
           allow list: if isOwner(userId) && isValidId(bookId);
