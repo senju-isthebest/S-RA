@@ -619,7 +619,7 @@ class SoraViewModel(
 
         if (!questionsDone) {
             delay(900L)
-            _ingestionProgress.value = _ingestionProgress.value.copy(label = "Generating Chapter " + chapter.chapterNumber + " questions...")
+            _ingestionProgress.value = _ingestionProgress.value.copy(statusLabel = "Generating Chapter " + chapter.chapterNumber + " questions...")
             val result = aiService.generateQuestionsForChapter(
                 bookId = book.id,
                 bookTitle = book.title,
