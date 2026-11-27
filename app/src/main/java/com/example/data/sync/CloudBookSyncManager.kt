@@ -134,6 +134,7 @@ class CloudBookSyncManager(
         val userId = uid()
         validateBookId(bookId)
         require(pages.size <= 5_000) { "Page count exceeds the supported limit." }
+        require(pages.map { it.pageNumber }.distinct().size == pages.size) { "Page numbers must be unique." }
         require(pages.sumOf { it.text.length.toLong() } <= MAX_TOTAL_TEXT_CHARS) { "Extracted text exceeds the cloud sync limit." }
         val pagesRef = bookRef(userId, bookId).collection("pages")
         return try {
