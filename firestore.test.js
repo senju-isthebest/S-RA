@@ -460,3 +460,57 @@ test("Exams enforce terminal SUBMITTED state lock", async () => {
     })
   );
 });
+
+test("Cloud book metadata and page text sync are owner-scoped", async () => {
+  const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
+  const bobDb = testEnv.authenticatedContext(BOB_UID).firestore();
+  const now = new Date(Date.now() - 2000);
+  const book = aliceDb.collection("users").doc(ALICE_UID).collection("books").doc("cloud_book_1");
+
+  await assertSucceeds(book.set({
+    title: "Cloud Sync Test Book",
+    subjectName: "General",
+    sourceType: "PDF",
+    localBookId: "cloud_book_1",
+    totalPages: 2,
+    processedPages: 2,
+    currentPage: 1,
+    extractionStatus: "COMPLETE",
+    archived: false,
+    masteryScore: 0,
+    storagePath: `users/${ALICE_UID}/books/cloud_book_1/source`,
+    sourceSizeBytes: 1024,
+    sourceSha256: "a".repeat(64),
+    syncStatus: "SYNCED",
+    cloudPageCount: 2,
+    createdAt: now,
+    updatedAt: now,
+  }));
+
+  const pageRef = book.collection("pages").doc("p00001_c000");
+  await assertSucceeds(pageRef.set({
+    pageNumber: 1,
+    chunkIndex: 0,
+    chunkCount: 1,
+    text: "Synced page text",
+    extractionMethod: "PDF_TEXT",
+    updatedAt: new Date(Date.now() - 1000),
+  }));
+
+  await assertSucceeds(pageRef.get());
+  await assertFails(
+    bobDb.collection("users").doc(ALICE_UID).collection("books")
+      .doc("cloud_book_1").collection("pages").doc("p00001_c000").get()
+  );
+  await assertFails(
+    bobDb.collection("users").doc(ALICE_UID).collection("books")
+      .doc("cloud_book_1").collection("pages").doc("p00002_c000").set({
+        pageNumber: 2,
+        chunkIndex: 0,
+        chunkCount: 1,
+        text: "Injected",
+        extractionMethod: "TEXT",
+        updatedAt: new Date(Date.now() - 1000),
+      })
+  );
+});
