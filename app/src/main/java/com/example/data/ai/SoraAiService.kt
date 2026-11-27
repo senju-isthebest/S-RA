@@ -122,7 +122,7 @@ class SoraAiService(
                 JSONObject(response)
                 response
             } catch (malformed: org.json.JSONException) {
-                val repairPrompt = "Repair the following into a valid JSON object matching the same fields. Return JSON only.\n\n$response"
+                val repairPrompt = "$jsonPrompt\n\nYour previous output was malformed. Repair it into a valid JSON object matching the requested fields. Return JSON only.\n\nPrevious output:\n$response"
                 val repaired = provider.generate(
                     AiTextRequest(
                         prompt = repairPrompt,
