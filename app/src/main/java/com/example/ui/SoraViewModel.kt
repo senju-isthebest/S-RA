@@ -497,11 +497,12 @@ class SoraViewModel(
 
     fun generateChapterResources(book: Book, chapter: Chapter, difficultyLevel: String = "Standard") {
         viewModelScope.launch {
-            if (generationQueueActive) {
+            if (generationQueueActive || _aiBusyLabel.value != null) {
                 _bannerMessage.value = "Another AI task is already running. Wait for it to finish first."
                 return@launch
             }
             generationQueueActive = true
+            _aiBusyLabel.value = "Preparing chapter generation..."
             try {
                 val pages = loadPagesForBook(book)
                 if (pages.isEmpty()) {
@@ -526,11 +527,12 @@ class SoraViewModel(
 
     fun generateFullBookResources(book: Book, forceRegenerate: Boolean = false) {
         viewModelScope.launch {
-            if (generationQueueActive) {
+            if (generationQueueActive || _aiBusyLabel.value != null) {
                 _bannerMessage.value = "Another AI task is already running. Wait for it to finish first."
                 return@launch
             }
             generationQueueActive = true
+            _aiBusyLabel.value = "Preparing full-book generation..."
             try {
                 val pages = loadPagesForBook(book)
                 if (pages.isEmpty()) {
