@@ -405,8 +405,23 @@ class SoraViewModel(
     ): Boolean {
         val file = documentProcessor.getLocalFile(bookId, fileName)
         val contentType = contentTypeFor(fileName)
-        val fileSynced = cloudBookSync.uploadSourceFile(bookId, file, fileName, contentType).isSuccess
-        val pagesSynced = if (pages.isEmpty()) true else cloudBookSync.uploadPages(bookId, pages).isSuccess
+        val fileSynced = cloudBookSync.uploadSourceFile(
+            bookId, file, fileName, contentType
+        ) { uploaded, total ->
+            _ingestionProgress.value = IngestionProgressState(
+                true, uploaded.coerceAtMost(Int.MAX_VALUE.toLong()).toInt(),
+                total.coerceAtLeast(1L).coerceAtMost(Int.MAX_VALUE.toLong()).toInt(),
+                "Uploading textbook file..."
+            )
+        }.isSuccess
+        val pagesSynced = if (pages.isEmpty()) {
+            true
+        } else {
+            _ingestionProgress.value = IngestionProgressState(true, 0, pages.size, "Syncing extracted pages...")
+            cloudBookSync.uploadPages(bookId, pages) { done, total ->
+                _ingestionProgress.value = IngestionProgressState(true, done, total, "Syncing extracted pages...")
+            }.isSuccess
+        }
         return fileSynced && pagesSynced
     }
 
