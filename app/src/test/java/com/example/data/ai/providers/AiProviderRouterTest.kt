@@ -196,6 +196,19 @@ class AiProviderRouterTest {
         OllamaTextProvider(modelId = "model", baseUrl = "https://ai.example.com")
         OllamaTextProvider(modelId = "model", baseUrl = "http://192.168.1.10:11434")
         OllamaTextProvider(modelId = "model", baseUrl = "http://127.0.0.1:11434")
+        OllamaTextProvider(modelId = "model", baseUrl = "http://172.20.0.4:11434")
+        OllamaTextProvider(modelId = "model", baseUrl = "http://[::1]:11434")
+        OllamaTextProvider(modelId = "model", baseUrl = "http://[fc00::1]:11434")
+    }
+
+    @Test
+    fun rejectsPrivateLookingPublicHostnames() {
+        assertThrows(IllegalArgumentException::class.java) {
+            OllamaTextProvider(modelId = "model", baseUrl = "http://10.attacker.example")
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            OllamaTextProvider(modelId = "model", baseUrl = "http://192.168.attacker.example")
+        }
     }
 
     @Test
