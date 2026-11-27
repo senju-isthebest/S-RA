@@ -75,6 +75,27 @@ class AiProviderRouterTest {
         assertEquals(false, backupCalled)
     }
 
+
+    @Test
+    fun rejectsPublicHttpOllamaEndpoint() {
+        assertThrows(IllegalArgumentException::class.java) {
+            OllamaTextProvider(modelId = "model", baseUrl = "http://example.com:11434")
+        }
+    }
+
+    @Test
+    fun acceptsHttpsAndPrivateLanOllamaEndpoints() {
+        OllamaTextProvider(modelId = "model", baseUrl = "https://ai.example.com")
+        OllamaTextProvider(modelId = "model", baseUrl = "http://192.168.1.10:11434")
+    }
+
+    @Test
+    fun rejectsCredentialsEmbeddedInEndpoint() {
+        assertThrows(IllegalArgumentException::class.java) {
+            OllamaTextProvider(modelId = "model", baseUrl = "https://user:password@ai.example.com")
+        }
+    }
+
     @Test
     fun returnsUnavailableWhenAllTransientProvidersFail() = runBlocking {
         val providers = listOf("one", "two").map {
