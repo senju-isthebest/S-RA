@@ -16,6 +16,9 @@ plugins {
   val ollamaModel = providers.gradleProperty("OLLAMA_MODEL")
     .orElse(providers.environmentVariable("OLLAMA_MODEL"))
     .getOrElse("qwen2.5:7b")
+  val ollamaVisionModel = providers.gradleProperty("OLLAMA_VISION_MODEL")
+    .orElse(providers.environmentVariable("OLLAMA_VISION_MODEL"))
+    .getOrElse("")
   fun buildConfigString(value: String) = "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
 
 android {
