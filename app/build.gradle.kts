@@ -12,6 +12,16 @@ android {
   namespace = "com.example"
   compileSdk { version = release(36) { minorApiLevel = 1 } }
 
+  // Optional Ollama fallback endpoint. It is configuration, not a secret.
+  // Set via -POLLAMA_BASE_URL=... or the OLLAMA_BASE_URL environment variable.
+  val ollamaBaseUrl = providers.gradleProperty("OLLAMA_BASE_URL")
+    .orElse(providers.environmentVariable("OLLAMA_BASE_URL"))
+    .getOrElse("")
+  val ollamaModel = providers.gradleProperty("OLLAMA_MODEL")
+    .orElse(providers.environmentVariable("OLLAMA_MODEL"))
+    .getOrElse("qwen2.5:7b")
+  fun buildConfigString(value: String) = "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
+
     defaultConfig {
         applicationId = "com.aistudio.sora.kxmzqr"
         minSdk = 24
