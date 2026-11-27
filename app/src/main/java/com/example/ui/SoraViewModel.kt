@@ -387,22 +387,24 @@ class SoraViewModel(
         }
     }
 
+    private fun contentTypeFor(fileName: String): String = when (fileName.substringAfterLast('.', "").lowercase()) {
+        "pdf" -> "application/pdf"
+        "docx" -> "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        "pptx" -> "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+        "png" -> "image/png"
+        "jpg", "jpeg" -> "image/jpeg"
+        "webp" -> "image/webp"
+        "md" -> "text/markdown"
+        else -> "text/plain"
+    }
+
     private suspend fun syncImportedBook(
         bookId: String,
         fileName: String,
         pages: List<BookPageContent>
     ): Boolean {
         val file = documentProcessor.getLocalFile(bookId, fileName)
-        val contentType = when (fileName.substringAfterLast('.', "").lowercase()) {
-            "pdf" -> "application/pdf"
-            "docx" -> "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-            "pptx" -> "application/vnd.openxmlformats-officedocument.presentationml.presentation"
-            "png" -> "image/png"
-            "jpg", "jpeg" -> "image/jpeg"
-            "webp" -> "image/webp"
-            "md" -> "text/markdown"
-            else -> "text/plain"
-        }
+        val contentType = contentTypeFor(fileName)
         val fileSynced = cloudBookSync.uploadSourceFile(bookId, file, fileName, contentType).isSuccess
         val pagesSynced = if (pages.isEmpty()) true else cloudBookSync.uploadPages(bookId, pages).isSuccess
         return fileSynced && pagesSynced
@@ -411,10 +413,24 @@ class SoraViewModel(
     fun retryCloudSync(book: Book) {
         viewModelScope.launch {
             _ingestionProgress.value = IngestionProgressState(true, 0, 1, "Retrying cloud sync...")
-            val pages = documentProcessor.loadPages(book.localBookId)
-            val ok = syncImportedBook(book.id, book.fileName, pages)
+            var pages = documentProcessor.loadPages(book.localBookId)
+            if (pages.isEmpty() && book.cloudPageCount > 0L) {
+                pages = cloudBookSync.downloadPages(book.id).getOrNull().orEmpty()
+                if (pages.isNotEmpty()) documentProcessor.savePages(book.localBookId, pages)
+            }
+            val localFile = documentProcessor.getLocalFile(book.localBookId, book.fileName)
+            val sourceOk = if (localFile.exists()) {
+                cloudBookSync.uploadSourceFile(book.id, localFile, book.fileName, contentTypeFor(book.fileName)).isSuccess
+            } else if (book.storagePath.isNotBlank()) {
+                cloudBookSync.downloadSourceFile(book.id, localFile).isSuccess
+            } else false
+            val pagesOk = when {
+                pages.isNotEmpty() -> cloudBookSync.uploadPages(book.id, pages).isSuccess
+                book.cloudPageCount == 0L -> true
+                else -> false
+            }
             _ingestionProgress.value = IngestionProgressState(false)
-            _bannerMessage.value = if (ok) "Cloud sync completed." else "Cloud sync is still unavailable. Your local copy is safe."
+            _bannerMessage.value = if (sourceOk && pagesOk) "Cloud sync completed." else "Cloud sync is still unavailable. Your local copy is safe."
         }
     }
 
