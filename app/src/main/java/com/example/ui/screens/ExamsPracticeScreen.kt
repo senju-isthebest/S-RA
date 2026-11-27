@@ -283,7 +283,7 @@ private fun ExamBuilderAndHistoryTab(
                             Text(rec.title, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             Text(
                                 if (rec.status == "SUBMITTED") {
-                                    "${rec.score}/${rec.totalMarks} pts • ${rec.correctCount} correct • ${rec.incorrectCount} missed"
+                                    "${rec.score}/${rec.totalMarks} pts • ${rec.correctCount} correct • ${rec.partiallyCorrectCount} partial • ${rec.incorrectCount} missed"
                                 } else {
                                     "In progress • ${rec.questionIds.size} questions"
                                 },
@@ -383,7 +383,7 @@ fun ExamSessionScreen(
             onExportPdf = {
                 val body = buildString {
                     append("Score: ${exam.score}/${exam.totalMarks} (${exam.percentage.toInt()}%)\n")
-                    append("Correct: ${exam.correctCount} | Incorrect: ${exam.incorrectCount} | Unanswered: ${exam.unansweredCount}\n\n")
+                    append("Correct: ${exam.correctCount} | Partial: ${exam.partiallyCorrectCount} | Incorrect: ${exam.incorrectCount} | Unanswered: ${exam.unansweredCount}\n\n")
                     append("Recommendation: ${exam.recommendedRevision}\n\n")
                     val ansObj = try { JSONObject(exam.answersJson) } catch (_: Exception) { JSONObject() }
                     examQuestions.forEachIndexed { idx, q ->
@@ -675,7 +675,7 @@ private fun ExamResultsScreen(
                         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Text(exam.title, style = MaterialTheme.typography.titleMedium)
                             Text("Score: ${exam.score}/${exam.totalMarks} pts (${exam.percentage.toInt()}%)", style = MaterialTheme.typography.bodyMedium)
-                            Text("Correct: ${exam.correctCount} • Missed: ${exam.incorrectCount} • Blank: ${exam.unansweredCount} • ${exam.timeSpentSeconds / 60}m ${exam.timeSpentSeconds % 60}s", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("Correct: ${exam.correctCount} • Partial: ${exam.partiallyCorrectCount} • Missed: ${exam.incorrectCount} • Blank: ${exam.unansweredCount} • ${exam.timeSpentSeconds / 60}m ${exam.timeSpentSeconds % 60}s", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                     if (exam.recommendedRevision.isNotBlank()) {
