@@ -2,6 +2,18 @@ name: Android CI
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - feature/ai-provider-router
+    paths:
+      - "app/**"
+      - "gradle/**"
+      - "build.gradle.kts"
+      - "settings.gradle.kts"
+
+concurrency:
+  group: sora-android-ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build-and-test:
