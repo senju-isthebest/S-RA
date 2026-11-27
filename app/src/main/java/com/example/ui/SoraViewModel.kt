@@ -654,22 +654,27 @@ class SoraViewModel(
         if (!questionsDone) {
             delay(900L)
             _ingestionProgress.value = _ingestionProgress.value.copy(statusLabel = "Generating Chapter " + chapter.chapterNumber + " questions...")
+            val requestedQuestionCount = (8 - questionOffset).coerceAtLeast(1)
             val result = aiService.generateQuestionsForChapter(
                 bookId = book.id,
                 bookTitle = book.title,
                 chapter = chapter,
                 pages = pages,
                 requestedTypes = listOf("MCQ", "TRUE_FALSE", "FILL_BLANK", "SHORT_ANSWER", "APPLICATION", "COMPARE_CONTRAST", "CALCULATION"),
-                count = (8 - questionOffset).coerceAtLeast(1)
+                count = requestedQuestionCount
             )
             result.onSuccess { generated ->
-                val stableQuestions = generated.mapIndexed { index, question ->
+                val stableQuestions = generated.take(requestedQuestionCount).mapIndexed { index, question ->
                     question.copy(id = "gen_" + book.id + "_ch" + chapter.chapterNumber + "_q" + (questionOffset + index + 1))
                 }
                 val saved = repository.addQuestions(stableQuestions)
                 if (saved.isSuccess) {
-                    questionsDone = true
-                    repository.updateChapterFields(book.id, chapter.id, mapOf("questionsGenerated" to true))
+                    questionsDone = questionOffset + stableQuestions.size >= 8
+                    if (questionsDone) {
+                        repository.updateChapterFields(book.id, chapter.id, mapOf("questionsGenerated" to true))
+                    } else {
+                        errors += "Generated " + stableQuestions.size + " of " + requestedQuestionCount + " requested questions; resume to fill the remaining slots."
+                    }
                 } else {
                     errors += saved.exceptionOrNull()?.localizedMessage ?: "Could not save generated questions."
                 }
@@ -679,15 +684,20 @@ class SoraViewModel(
         if (!flashcardsDone) {
             delay(900L)
             _ingestionProgress.value = _ingestionProgress.value.copy(statusLabel = "Generating Chapter " + chapter.chapterNumber + " flashcards...")
-            val result = aiService.generateFlashcardsForChapter(book.id, chapter, pages, count = (8 - flashcardOffset).coerceAtLeast(1))
+            val requestedFlashcardCount = (8 - flashcardOffset).coerceAtLeast(1)
+            val result = aiService.generateFlashcardsForChapter(book.id, chapter, pages, count = requestedFlashcardCount)
             result.onSuccess { generated ->
-                val stableCards = generated.mapIndexed { index, card ->
+                val stableCards = generated.take(requestedFlashcardCount).mapIndexed { index, card ->
                     card.copy(id = "gen_" + book.id + "_ch" + chapter.chapterNumber + "_f" + (flashcardOffset + index + 1))
                 }
                 val saved = repository.addFlashcards(stableCards)
                 if (saved.isSuccess) {
-                    flashcardsDone = true
-                    repository.updateChapterFields(book.id, chapter.id, mapOf("flashcardsGenerated" to true))
+                    flashcardsDone = flashcardOffset + stableCards.size >= 8
+                    if (flashcardsDone) {
+                        repository.updateChapterFields(book.id, chapter.id, mapOf("flashcardsGenerated" to true))
+                    } else {
+                        errors += "Generated " + stableCards.size + " of " + requestedFlashcardCount + " requested flashcards; resume to fill the remaining slots."
+                    }
                 } else {
                     errors += saved.exceptionOrNull()?.localizedMessage ?: "Could not save generated flashcards."
                 }
@@ -701,7 +711,7 @@ class SoraViewModel(
             anyDone -> "PARTIAL"
             else -> "FAILED"
         }
-        repository.updateChapterFields(book.id, chapter.id, mapOf(
+        val finalSave = repository.updateChapterFields(book.id, chapter.id, mapOf(
             "intelligenceGenerated" to intelligenceDone,
             "questionsGenerated" to questionsDone,
             "flashcardsGenerated" to flashcardsDone,
@@ -709,6 +719,10 @@ class SoraViewModel(
             "generationAttempts" to attempts,
             "generationError" to errors.joinToString("; ").take(500)
         ))
+        if (finalSave.isFailure) {
+            _bannerMessage.value = finalSave.exceptionOrNull()?.localizedMessage ?: "Could not persist chapter generation status."
+            return false
+        }
         return allDone
     }
 
