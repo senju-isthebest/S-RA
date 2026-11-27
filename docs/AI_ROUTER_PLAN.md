@@ -4,10 +4,13 @@
 Keep AI features resilient when one provider is unavailable or rate-limited, without exposing provider secrets in the Android APK.
 
 ## Current state
-- Gemini is the primary provider for existing Firebase AI Logic calls.
-- Text-only provider abstraction is integrated for Reading Assistant, Equation Solver, and Chapter Comparison/Gap Analysis.
-- Optional text-only Ollama fallback is build-configured. It is disabled unless an endpoint is supplied.
-- Structured outputs, image/OCR, and tutor streaming remain on Firebase AI Logic and do not currently use fallback.
+- Gemini is primary for existing Firebase AI Logic calls.
+- Text routing is integrated for Reading Assistant, Equation Solver, and Chapter Comparison/Gap Analysis.
+- Optional Ollama text fallback is build-configured and disabled unless an endpoint is supplied.
+- Structured generation has JSON-mode fallback, validation, and one repair attempt.
+- OCR image fallback uses a separately configured vision model.
+- Non-image tutor streaming can fall back to Ollama if Gemini fails before emitting any content.
+- Tutor requests containing an image remain Gemini-only.
 
 ## Target architecture
 Android app -> authenticated AI Gateway -> provider adapters
@@ -35,9 +38,9 @@ Local Ollama is free to run but uses the host's hardware and must be reachable t
 
 ## Implementation stages
 1. Provider contracts and typed failures. (implemented)
-2. Gemini and Ollama text adapters. (implemented)
+2. Gemini and Ollama text/vision adapter. (implemented)
 3. Router and integration for text-only features. (implemented)
 4. Build-time optional fallback configuration. (implemented)
-5. Structured, image, and streaming provider capabilities. (pending)
-6. Retry/backoff, structured-response validation, caching, and tests. (pending)
+5. Structured JSON fallback, OCR fallback, and non-image tutor fallback. (implemented; image-based tutor fallback pending)
+6. Structured-response validation and repair plus adapter/router tests. (implemented; retry/backoff and caching pending)
 7. Build/test verification in a reproducible environment. (pending)
