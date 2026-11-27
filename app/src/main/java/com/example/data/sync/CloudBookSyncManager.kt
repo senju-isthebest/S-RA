@@ -225,7 +225,16 @@ class CloudBookSyncManager(
                 chunk.forEach { batch.delete(it.reference) }
                 batch.commit().await()
             }
-            runCatching { sourceRef(userId, bookId).delete().await() }
+            try {
+                sourceRef(userId, bookId).delete().await()
+            } catch (storageError: com.google.firebase.storage.StorageException) {
+                if (storageError.errorCode != com.google.firebase.storage.StorageException.ERROR_OBJECT_NOT_FOUND) throw storageError
+            }
+            bookRef(userId, bookId).update(mapOf(
+                "storagePath" to "", "sourceSizeBytes" to 0L, "sourceSha256" to "",
+                "syncStatus" to "LOCAL", "cloudPageCount" to 0, "pagesSyncStatus" to "LOCAL",
+                "updatedAt" to FieldValue.serverTimestamp()
+            )).await()
             Result.success(Unit)
         } catch (cancelled: CancellationException) {
             throw cancelled
