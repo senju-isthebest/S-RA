@@ -339,7 +339,7 @@ service cloud.firestore {
           allow list: if isOwner(userId) && isValidId(bookId);
           allow create: if isOwner(userId) && isValidId(bookId) && isValidId(chapterId) &&
                            incoming().bookId == bookId &&
-                           incoming().keys().hasAll(['bookId', 'chapterNumber', 'title', 'startPage', 'endPage', 'estimatedStudyMinutes', 'masteryScore', 'masteryStatus', 'intelligenceGenerated', 'questionsGenerated', 'flashcardsGenerated', 'generationStatus', 'generationAttempts', 'generationError', 'createdAt', 'updatedAt']) &&
+                           incoming().keys().hasAll(['bookId', 'chapterNumber', 'title', 'startPage', 'endPage', 'estimatedStudyMinutes', 'masteryScore', 'masteryStatus', 'createdAt', 'updatedAt']) &&
                            incoming().keys().hasOnly(['bookId', 'chapterNumber', 'title', 'startPage', 'endPage', 'estimatedStudyMinutes', 'masteryScore', 'masteryStatus', 'intelligenceGenerated', 'questionsGenerated', 'flashcardsGenerated', 'generationStatus', 'generationAttempts', 'generationError', 'userGoal', 'quickSummary', 'detailedSummary', 'bulletSummary', 'examRevisionSummary', 'learningObjectives', 'mainTopics', 'prerequisites', 'keyConcepts', 'importantDefinitions', 'importantFacts', 'importantDates', 'formulas', 'examples', 'misconceptions', 'comparisons', 'difficultSections', 'relatedChapters', 'conceptMapJson', 'lastStudiedAt', 'createdAt', 'updatedAt']) &&
                            incoming().createdAt is timestamp && incoming().createdAt <= request.time &&
                            incoming().updatedAt is timestamp && incoming().updatedAt <= request.time &&
