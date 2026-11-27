@@ -6,20 +6,28 @@
 - Router that falls back only on transient provider errors.
 - Gemini text adapter with timeout and basic error classification.
 - Ollama non-streaming text adapter with explicit endpoint/model configuration.
-- Three plain-text SŌRA features now use the router: Reading Assistant, Equation Solver, and Chapter Comparison/Gap Analysis.
+- Optional Ollama fallback can now be configured at Android build time using `OLLAMA_BASE_URL` and `OLLAMA_MODEL` Gradle properties or environment variables. The endpoint is not a secret and is not hardcoded.
+- Gemini remains primary; Ollama is attempted only after a transient Gemini failure and only when configured.
+- Three plain-text features use the router: Reading Assistant, Equation Solver, and Chapter Comparison/Gap Analysis.
 - Unit tests for fallback, non-fallback failures, and all-provider outage.
 - OkHttp dependency enabled for the Ollama adapter.
 
 ## Not integrated yet
-- Router currently has Gemini as its only provider when instantiated by SoraAiService. Fallback infrastructure is tested, but production fallback is not active yet.
-- Existing structured generation (book structure, chapter intelligence, question generation, flashcards, teach-back) still uses Firebase AI Logic response schemas.
-- OCR/image generation and Tutor streaming still use Firebase AI Logic.
-- App settings for configuring a trusted Ollama endpoint/model are not implemented.
-- No secured remote AI gateway/server has been deployed.
-- Build/test execution has not been performed in this environment.
+- No secured remote AI gateway/server has been deployed. A shared remote Ollama endpoint must not be exposed without TLS, authentication, quotas, and abuse protection.
+- Structured generation (book structure, chapter intelligence, question generation, flashcards, teach-back) still uses Firebase AI Logic response schemas.
+- OCR/image generation and tutor streaming still use Firebase AI Logic.
+- Runtime provider settings UI is not implemented; fallback configuration is build-time only.
+- Build/test execution has not been performed in this environment. The branch is not yet verified to compile.
 
-## Important security and reliability notes
-- The Android app must not contain third-party cloud API secrets.
-- Public Ollama instances need access control, TLS, rate limiting, and abuse protection. Never expose a raw Ollama server publicly.
-- This first router is text-only; image and schema-constrained requests need provider capability negotiation and separate adapters.
-- Fallback does not guarantee service availability if all providers are offline, out of quota, or unreachable.
+## Build-time fallback configuration
+- Set `OLLAMA_BASE_URL` to a trusted Ollama endpoint.
+- Set `OLLAMA_MODEL` to an installed model name; defaults to `qwen2.5:7b`.
+- You can provide Gradle properties (`-POLLAMA_BASE_URL=...`, `-POLLAMA_MODEL=...`) or environment variables.
+- Leave the URL blank for Gemini-only behavior.
+- Do not put cloud API keys or credentials in these values.
+
+## Security and reliability
+- Never ship cloud API keys, gateway secrets, or Ollama Cloud credentials in the APK.
+- The app currently supports a text-only local/remote Ollama adapter. A remote provider endpoint must be trusted and protected; plain HTTP is not suitable for public internet use.
+- This router does not guarantee availability if providers are offline, out of quota, or unreachable.
+- Image and schema-constrained requests need capability negotiation and separate adapters before they can safely use fallback.
