@@ -10,7 +10,7 @@ Keep AI features resilient when one provider is unavailable or rate-limited, wit
 - Structured generation has JSON-mode fallback, validation, and one repair attempt.
 - OCR image fallback uses a separately configured vision model.
 - Non-image tutor streaming can fall back to Ollama if Gemini fails before emitting any content.
-- Tutor requests containing an image remain Gemini-only.
+- Image-context tutor fallback uses the configured Ollama vision model if Gemini fails before emitting any streamed text.
 
 ## Target architecture
 Android app -> authenticated AI Gateway -> provider adapters
@@ -42,6 +42,6 @@ Local Ollama is free to run but uses the host's hardware and must be reachable t
 2. Gemini and Ollama text/vision adapter. (implemented)
 3. Router and integration for text-only features. (implemented)
 4. Build-time optional fallback configuration. (implemented)
-5. Structured JSON fallback, OCR fallback, and non-image tutor fallback. (implemented; image-based tutor fallback pending)
+5. Structured JSON fallback, OCR fallback, and tutor text/vision fallback before any partial stream. (implemented)
 6. Structured-response validation and one repair attempt plus adapter/router tests. (implemented; retry/backoff and caching pending)
 7. Build/test verification in a reproducible environment. (pending)
