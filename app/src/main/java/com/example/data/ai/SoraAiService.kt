@@ -720,10 +720,9 @@ class SoraAiService {
                 Use clean markdown tables or bulleted prerequisite checklists grounded in these pages:
                 $snippet
             """.trimIndent()
-            val response = withTimeout(AI_TIMEOUT_MS) {
-                generalModel.generateContent(prompt)
+            val text = withTimeout(AI_TIMEOUT_MS) {
+                textRouter.generate(AiTextRequest(prompt = prompt, taskTag = "chapter_analysis")).text.trim()
             }
-            val text = response.text?.trim().orEmpty()
             if (text.isBlank()) Result.failure(IllegalStateException("Empty analysis returned."))
             else Result.success(text)
         } catch (e: TimeoutCancellationException) {
