@@ -35,7 +35,8 @@ object ExamEngine {
         val ratio = overlap.toDouble() / expectedTokens.size.toDouble()
         if (ratio < 0.20) return QuestionGrade(0L, maximum, false, false)
 
-        val earned = floor(maximum * ratio).toLong().coerceIn(1L, maximum)
+        val earned = floor(maximum * ratio).toLong().coerceIn(0L, maximum)
+        if (earned == 0L) return QuestionGrade(0L, maximum, false, false)
         return QuestionGrade(
             earnedMarks = earned,
             maximumMarks = maximum,
