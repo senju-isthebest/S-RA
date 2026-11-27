@@ -107,3 +107,23 @@ jobs:
             fi
           done
           exit 1
+
+  rules-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: package.json
+
+      - name: Install Firebase rules test dependencies
+        run: npm install
+
+      - name: Run Firestore and Storage rules tests in emulators
+        run: npx firebase emulators:exec --only firestore,storage --project demo-no-project "npm test"
