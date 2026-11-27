@@ -566,7 +566,7 @@ class SoraViewModel(
                         true, index, chapters.size,
                         "Chapter " + chapter.chapterNumber + "/" + chapters.size + ": " + chapter.title
                     )
-                    val complete = generateAllResourcesForChapterInternal(book, chapter, pages)
+                    val complete = generateAllResourcesForChapterInternal(book, chapter, pages, forceGenerate = forceRegenerate)
                     if (complete) completedChapters++ else failedChapters++
                     _ingestionProgress.value = IngestionProgressState(
                         true, index + 1, chapters.size,
@@ -591,12 +591,17 @@ class SoraViewModel(
         book: Book,
         chapter: Chapter,
         pages: List<BookPageContent>,
-        difficultyLevel: String = "Standard"
+        difficultyLevel: String = "Standard",
+        forceGenerate: Boolean = false
     ): Boolean {
         if (chapter.id.isBlank()) return false
-        var intelligenceDone = chapter.intelligenceGenerated
-        var questionsDone = chapter.questionsGenerated
-        var flashcardsDone = chapter.flashcardsGenerated
+        val existingQuestions = if (forceGenerate) emptyList() else questions.value.filter { it.bookId == book.id && it.chapterNumber == chapter.chapterNumber && it.aiGenerated }
+        val existingFlashcards = if (forceGenerate) emptyList() else flashcards.value.filter { it.bookId == book.id && it.chapterNumber == chapter.chapterNumber && it.deckName.startsWith("Ch. " + chapter.chapterNumber + ":") }
+        var intelligenceDone = chapter.intelligenceGenerated || (!forceGenerate && chapter.quickSummary.isNotBlank() && chapter.detailedSummary.isNotBlank())
+        var questionsDone = chapter.questionsGenerated || existingQuestions.size >= 8
+        var flashcardsDone = chapter.flashcardsGenerated || existingFlashcards.size >= 8
+        val questionOffset = if (forceGenerate) 0 else existingQuestions.size
+        val flashcardOffset = if (forceGenerate) 0 else existingFlashcards.size
         val attempts = (chapter.generationAttempts + 1L).coerceAtMost(100L)
         val errors = mutableListOf<String>()
 
@@ -642,11 +647,11 @@ class SoraViewModel(
                 chapter = chapter,
                 pages = pages,
                 requestedTypes = listOf("MCQ", "TRUE_FALSE", "FILL_BLANK", "SHORT_ANSWER", "APPLICATION", "COMPARE_CONTRAST", "CALCULATION"),
-                count = 8
+                count = (8 - questionOffset).coerceAtLeast(1)
             )
             result.onSuccess { generated ->
                 val stableQuestions = generated.mapIndexed { index, question ->
-                    question.copy(id = "gen_" + book.id + "_ch" + chapter.chapterNumber + "_q" + (index + 1))
+                    question.copy(id = "gen_" + book.id + "_ch" + chapter.chapterNumber + "_q" + (questionOffset + index + 1))
                 }
                 val saved = repository.addQuestions(stableQuestions)
                 if (saved.isSuccess) {
@@ -661,10 +666,10 @@ class SoraViewModel(
         if (!flashcardsDone) {
             delay(900L)
             _ingestionProgress.value = _ingestionProgress.value.copy(label = "Generating Chapter " + chapter.chapterNumber + " flashcards...")
-            val result = aiService.generateFlashcardsForChapter(book.id, chapter, pages, count = 8)
+            val result = aiService.generateFlashcardsForChapter(book.id, chapter, pages, count = (8 - flashcardOffset).coerceAtLeast(1))
             result.onSuccess { generated ->
                 val stableCards = generated.mapIndexed { index, card ->
-                    card.copy(id = "gen_" + book.id + "_ch" + chapter.chapterNumber + "_f" + (index + 1))
+                    card.copy(id = "gen_" + book.id + "_ch" + chapter.chapterNumber + "_f" + (flashcardOffset + index + 1))
                 }
                 val saved = repository.addFlashcards(stableCards)
                 if (saved.isSuccess) {
