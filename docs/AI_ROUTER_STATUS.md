@@ -20,7 +20,7 @@
 - Fallback support for structured JSON is implemented, but the Ollama path does not enforce the Firebase response schema itself; application JSON parsing/validation and one repair attempt are used.
 - Tutor requests that include a page image remain Gemini-only; image-based tutor fallback is not implemented.
 - Runtime provider settings UI is not implemented; fallback configuration is build-time only.
-- A CI attempt failed during Android SDK setup because the workflow requested the obsolete SDK package `tools`; the workflow configuration was corrected and expanded tests were added. A successful rerun has not yet been confirmed, so the branch remains unverified to compile.
+- CI failure was traced to `android-actions/setup-android` attempting to install the obsolete SDK package `tools`. The workflow now installs only the required Android 36 platform/build-tools/platform-tools packages and is manual-trigger-only to prevent notification spam. A successful run has not yet been confirmed.
 
 ## Build-time fallback configuration
 - Set `OLLAMA_BASE_URL` to a trusted Ollama endpoint.
