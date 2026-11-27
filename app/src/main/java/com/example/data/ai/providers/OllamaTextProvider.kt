@@ -65,6 +65,7 @@ class OllamaTextProvider(
                 .put("stream", false)
                 .put("options", JSONObject().put("temperature", request.temperature))
             request.maxTokens?.let { payload.getJSONObject("options").put("num_predict", it) }
+            if (request.responseFormat == AiResponseFormat.JSON) payload.put("format", "json")
 
             val url = endpointBaseUrl + "/api/generate"
             val httpRequest = Request.Builder()
