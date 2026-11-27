@@ -1,0 +1,6 @@
+{
+  "name": "SŌRA",
+  "description": "AI-powered student learning platform transforming textbooks and study materials into summaries, question banks, exams, flashcards, AI tutor, smart revision, study planner, notes, and analytics.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,366 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Student profile, streak, weekly minutes, and dashboard customization",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "displayName": { "type": "string" },
+        "email": { "type": "string" },
+        "studyStreakDays": { "type": "integer" },
+        "weeklyStudyMinutes": { "type": "integer" },
+        "dailyGoalMinutes": { "type": "integer" },
+        "lastStudyDateKey": { "type": "string" },
+        "dashboardSections": { "type": "array" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "displayName", "studyStreakDays", "weeklyStudyMinutes", "dailyGoalMinutes", "createdAt", "updatedAt"]
+    },
+    "Subject": {
+      "title": "Subject",
+      "description": "Academic subject, semester, folder, and target grade",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "semester": { "type": "string" },
+        "folder": { "type": "string" },
+        "colorHex": { "type": "string" },
+        "targetGrade": { "type": "string" },
+        "archived": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "semester", "folder", "colorHex", "targetGrade", "archived", "createdAt", "updatedAt"]
+    },
+    "Book": {
+      "title": "Book",
+      "description": "Uploaded textbook or study material metadata and reading progress",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "author": { "type": "string" },
+        "subjectId": { "type": "string" },
+        "subjectName": { "type": "string" },
+        "semester": { "type": "string" },
+        "folder": { "type": "string" },
+        "sourceType": { "type": "string" },
+        "fileName": { "type": "string" },
+        "localBookId": { "type": "string" },
+        "totalPages": { "type": "integer" },
+        "processedPages": { "type": "integer" },
+        "currentPage": { "type": "integer" },
+        "failedPages": { "type": "array" },
+        "extractionStatus": { "type": "string", "enum": ["PROCESSING", "COMPLETE", "PARTIAL", "FAILED"] },
+        "extractionError": { "type": "string" },
+        "overview": { "type": "string" },
+        "formulaSheet": { "type": "string" },
+        "archived": { "type": "boolean" },
+        "masteryScore": { "type": "integer" },
+        "bookmarkedPages": { "type": "array" },
+        "highlightsJson": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "subjectName", "sourceType", "localBookId", "totalPages", "processedPages", "currentPage", "extractionStatus", "archived", "masteryScore", "createdAt", "updatedAt"]
+    },
+    "Chapter": {
+      "title": "Chapter",
+      "description": "Structured chapter intelligence, summaries, objectives, formulas, and concept maps",
+      "type": "object",
+      "properties": {
+        "bookId": { "type": "string" },
+        "chapterNumber": { "type": "integer" },
+        "title": { "type": "string" },
+        "startPage": { "type": "integer" },
+        "endPage": { "type": "integer" },
+        "estimatedStudyMinutes": { "type": "integer" },
+        "masteryScore": { "type": "integer" },
+        "masteryStatus": { "type": "string", "enum": ["NOT_STARTED", "LEARNING", "REVIEWING", "MASTERED"] },
+        "userGoal": { "type": "string" },
+        "quickSummary": { "type": "string" },
+        "detailedSummary": { "type": "string" },
+        "bulletSummary": { "type": "string" },
+        "examRevisionSummary": { "type": "string" },
+        "learningObjectives": { "type": "array" },
+        "mainTopics": { "type": "array" },
+        "prerequisites": { "type": "array" },
+        "keyConcepts": { "type": "array" },
+        "importantDefinitions": { "type": "array" },
+        "importantFacts": { "type": "array" },
+        "importantDates": { "type": "array" },
+        "formulas": { "type": "array" },
+        "examples": { "type": "array" },
+        "misconceptions": { "type": "array" },
+        "comparisons": { "type": "array" },
+        "difficultSections": { "type": "array" },
+        "relatedChapters": { "type": "array" },
+        "conceptMapJson": { "type": "string" },
+        "lastStudiedAt": { "type": "string", "format": "date-time" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["bookId", "chapterNumber", "title", "startPage", "endPage", "estimatedStudyMinutes", "masteryScore", "masteryStatus", "createdAt", "updatedAt"]
+    },
+    "GlossaryEntry": {
+      "title": "GlossaryEntry",
+      "description": "Textbook glossary entry with page reference and simplified explanation",
+      "type": "object",
+      "properties": {
+        "bookId": { "type": "string" },
+        "chapterNumber": { "type": "integer" },
+        "term": { "type": "string" },
+        "definition": { "type": "string" },
+        "simplifiedExplanation": { "type": "string" },
+        "example": { "type": "string" },
+        "pageReference": { "type": "integer" },
+        "relatedTerms": { "type": "array" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["bookId", "chapterNumber", "term", "definition", "pageReference", "createdAt", "updatedAt"]
+    },
+    "QuestionItem": {
+      "title": "QuestionItem",
+      "description": "Comprehensive question bank item with performance tracking and mistake notebook state",
+      "type": "object",
+      "properties": {
+        "bookId": { "type": "string" },
+        "bookTitle": { "type": "string" },
+        "chapterNumber": { "type": "integer" },
+        "section": { "type": "string" },
+        "topic": { "type": "string" },
+        "sourcePage": { "type": "integer" },
+        "difficulty": { "type": "string", "enum": ["EASY", "MEDIUM", "HARD"] },
+        "questionType": { "type": "string" },
+        "questionText": { "type": "string" },
+        "options": { "type": "array" },
+        "correctAnswer": { "type": "string" },
+        "explanation": { "type": "string" },
+        "learningObjective": { "type": "string" },
+        "tags": { "type": "array" },
+        "marks": { "type": "integer" },
+        "estimatedSeconds": { "type": "integer" },
+        "bookmarked": { "type": "boolean" },
+        "hidden": { "type": "boolean" },
+        "reported": { "type": "boolean" },
+        "reportReason": { "type": "string" },
+        "personalNote": { "type": "string" },
+        "collectionName": { "type": "string" },
+        "attempts": { "type": "integer" },
+        "correctCount": { "type": "integer" },
+        "incorrectCount": { "type": "integer" },
+        "lastAnsweredCorrect": { "type": "boolean" },
+        "mistakeResolved": { "type": "boolean" },
+        "aiGenerated": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["bookId", "chapterNumber", "difficulty", "questionType", "questionText", "correctAnswer", "marks", "bookmarked", "hidden", "reported", "attempts", "correctCount", "incorrectCount", "mistakeResolved", "aiGenerated", "createdAt", "updatedAt"]
+    },
+    "Flashcard": {
+      "title": "Flashcard",
+      "description": "Spaced-repetition flashcard linked to textbook chapter and page",
+      "type": "object",
+      "properties": {
+        "bookId": { "type": "string" },
+        "chapterNumber": { "type": "integer" },
+        "deckName": { "type": "string" },
+        "format": { "type": "string" },
+        "front": { "type": "string" },
+        "back": { "type": "string" },
+        "hint": { "type": "string" },
+        "pageReference": { "type": "integer" },
+        "bookmarked": { "type": "boolean" },
+        "easeFactor": { "type": "number" },
+        "intervalDays": { "type": "integer" },
+        "repetitions": { "type": "integer" },
+        "nextReviewAtMillis": { "type": "integer" },
+        "lastRating": { "type": "string", "enum": ["UNSEEN", "EASY", "MEDIUM", "HARD"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["bookId", "chapterNumber", "deckName", "format", "front", "back", "bookmarked", "easeFactor", "intervalDays", "repetitions", "nextReviewAtMillis", "lastRating", "createdAt", "updatedAt"]
+    },
+    "ExamRecord": {
+      "title": "ExamRecord",
+      "description": "Generated exam session and post-submission analytics",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "preset": { "type": "string" },
+        "bookIds": { "type": "array" },
+        "questionIds": { "type": "array" },
+        "durationMinutes": { "type": "integer" },
+        "totalMarks": { "type": "integer" },
+        "allowRevisit": { "type": "boolean" },
+        "showExplanationEach": { "type": "boolean" },
+        "status": { "type": "string", "enum": ["IN_PROGRESS", "SUBMITTED"] },
+        "answersJson": { "type": "string" },
+        "flaggedQuestionIds": { "type": "array" },
+        "score": { "type": "integer" },
+        "percentage": { "type": "number" },
+        "correctCount": { "type": "integer" },
+        "incorrectCount": { "type": "integer" },
+        "unansweredCount": { "type": "integer" },
+        "timeSpentSeconds": { "type": "integer" },
+        "analyticsJson": { "type": "string" },
+        "recommendedRevision": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "preset", "bookIds", "questionIds", "durationMinutes", "totalMarks", "allowRevisit", "showExplanationEach", "status", "score", "percentage", "correctCount", "incorrectCount", "unansweredCount", "timeSpentSeconds", "createdAt", "updatedAt"]
+    },
+    "StudyNote": {
+      "title": "StudyNote",
+      "description": "Markdown study notebook entry linked to books, pages, and questions",
+      "type": "object",
+      "properties": {
+        "bookId": { "type": "string" },
+        "subjectName": { "type": "string" },
+        "chapterNumber": { "type": "integer" },
+        "linkedPage": { "type": "integer" },
+        "linkedConcept": { "type": "string" },
+        "linkedQuestionId": { "type": "string" },
+        "title": { "type": "string" },
+        "contentMarkdown": { "type": "string" },
+        "tags": { "type": "array" },
+        "bookmarked": { "type": "boolean" },
+        "quickNote": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "contentMarkdown", "bookmarked", "quickNote", "createdAt", "updatedAt"]
+    },
+    "PlannerTask": {
+      "title": "PlannerTask",
+      "description": "Personal academic planner task, exam date, or adaptive revision session",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "taskType": { "type": "string", "enum": ["STUDY", "HOMEWORK", "ASSIGNMENT", "PROJECT", "EXAM", "REVISION"] },
+        "subjectName": { "type": "string" },
+        "bookId": { "type": "string" },
+        "chapterNumber": { "type": "integer" },
+        "dueDateMillis": { "type": "integer" },
+        "estimatedMinutes": { "type": "integer" },
+        "priority": { "type": "string", "enum": ["LOW", "MEDIUM", "HIGH", "URGENT"] },
+        "completed": { "type": "boolean" },
+        "recurring": { "type": "string", "enum": ["NONE", "DAILY", "WEEKLY"] },
+        "notes": { "type": "string" },
+        "confidenceRating": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "taskType", "dueDateMillis", "estimatedMinutes", "priority", "completed", "recurring", "confidenceRating", "createdAt", "updatedAt"]
+    },
+    "FocusSession": {
+      "title": "FocusSession",
+      "description": "Recorded Pomodoro or stopwatch study focus session",
+      "type": "object",
+      "properties": {
+        "subjectName": { "type": "string" },
+        "bookId": { "type": "string" },
+        "chapterNumber": { "type": "integer" },
+        "mode": { "type": "string", "enum": ["POMODORO", "STOPWATCH", "CUSTOM"] },
+        "durationMinutes": { "type": "integer" },
+        "goalText": { "type": "string" },
+        "notes": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["subjectName", "mode", "durationMinutes", "createdAt", "updatedAt"]
+    },
+    "TutorMessage": {
+      "title": "TutorMessage",
+      "description": "Contextual AI tutor message with mode and verified citations",
+      "type": "object",
+      "properties": {
+        "bookId": { "type": "string" },
+        "chapterNumber": { "type": "integer" },
+        "pageNumber": { "type": "integer" },
+        "mode": { "type": "string" },
+        "role": { "type": "string", "enum": ["USER", "MODEL"] },
+        "text": { "type": "string" },
+        "citations": { "type": "array" },
+        "distinctionNote": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["bookId", "chapterNumber", "pageNumber", "mode", "role", "text", "createdAt", "updatedAt"]
+    },
+    "CitationEntry": {
+      "title": "CitationEntry",
+      "description": "Formatted academic citation entry",
+      "type": "object",
+      "properties": {
+        "bookId": { "type": "string" },
+        "style": { "type": "string", "enum": ["APA", "MLA", "CHICAGO", "IEEE"] },
+        "authors": { "type": "string" },
+        "title": { "type": "string" },
+        "year": { "type": "string" },
+        "publisher": { "type": "string" },
+        "pages": { "type": "string" },
+        "formattedText": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["style", "title", "formattedText", "createdAt", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Authenticated student profile and dashboard customization"
+    },
+    "/users/{userId}/subjects/{subjectId}": {
+      "schema": { "$ref": "#/entities/Subject" },
+      "description": "Student subjects and semesters"
+    },
+    "/users/{userId}/books/{bookId}": {
+      "schema": { "$ref": "#/entities/Book" },
+      "description": "Student uploaded textbooks and reading progress"
+    },
+    "/users/{userId}/books/{bookId}/chapters/{chapterId}": {
+      "schema": { "$ref": "#/entities/Chapter" },
+      "description": "Structured textbook chapter knowledge base"
+    },
+    "/users/{userId}/books/{bookId}/glossary/{termId}": {
+      "schema": { "$ref": "#/entities/GlossaryEntry" },
+      "description": "Textbook glossary entries"
+    },
+    "/users/{userId}/questions/{questionId}": {
+      "schema": { "$ref": "#/entities/QuestionItem" },
+      "description": "Generated and user-edited textbook question bank"
+    },
+    "/users/{userId}/flashcards/{cardId}": {
+      "schema": { "$ref": "#/entities/Flashcard" },
+      "description": "Spaced-repetition flashcards"
+    },
+    "/users/{userId}/exams/{examId}": {
+      "schema": { "$ref": "#/entities/ExamRecord" },
+      "description": "Exams and submitted exam analytics"
+    },
+    "/users/{userId}/notes/{noteId}": {
+      "schema": { "$ref": "#/entities/StudyNote" },
+      "description": "Student notebooks and quick notes"
+    },
+    "/users/{userId}/plannerTasks/{taskId}": {
+      "schema": { "$ref": "#/entities/PlannerTask" },
+      "description": "Study planner tasks and exam deadlines"
+    },
+    "/users/{userId}/focusSessions/{sessionId}": {
+      "schema": { "$ref": "#/entities/FocusSession" },
+      "description": "Pomodoro and stopwatch focus history"
+    },
+    "/users/{userId}/tutorMessages/{messageId}": {
+      "schema": { "$ref": "#/entities/TutorMessage" },
+      "description": "Contextual AI tutor conversation history"
+    },
+    "/users/{userId}/citations/{citationId}": {
+      "schema": { "$ref": "#/entities/CitationEntry" },
+      "description": "Student citation organizer entries"
+    }
+  }
+}

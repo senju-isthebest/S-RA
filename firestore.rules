@@ -1,0 +1,483 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isBoundedString(val, minLen, maxLen) {
+      return val is string && val.size() >= minLen && val.size() <= maxLen;
+    }
+
+    function isBoundedStringList(val, maxItems) {
+      return val is list && val.size() <= maxItems && (val.size() == 0 || val[0] is string);
+    }
+
+    function isBoundedIntList(val, maxItems) {
+      return val is list && val.size() <= maxItems && (val.size() == 0 || val[0] is int);
+    }
+
+    function isValidUserProfile(data) {
+      return isBoundedString(data.userId, 1, 128) &&
+             isBoundedString(data.displayName, 1, 100) &&
+             (!('email' in data) || isBoundedString(data.email, 0, 200)) &&
+             data.studyStreakDays is int && data.studyStreakDays >= 0 && data.studyStreakDays <= 10000 &&
+             data.weeklyStudyMinutes is int && data.weeklyStudyMinutes >= 0 && data.weeklyStudyMinutes <= 100000 &&
+             data.dailyGoalMinutes is int && data.dailyGoalMinutes >= 5 && data.dailyGoalMinutes <= 720 &&
+             (!('lastStudyDateKey' in data) || isBoundedString(data.lastStudyDateKey, 0, 20)) &&
+             (!('dashboardSections' in data) || isBoundedStringList(data.dashboardSections, 15));
+    }
+
+    function isValidSubject(data) {
+      return isBoundedString(data.name, 1, 80) &&
+             isBoundedString(data.semester, 0, 50) &&
+             isBoundedString(data.folder, 0, 50) &&
+             isBoundedString(data.colorHex, 1, 16) &&
+             isBoundedString(data.targetGrade, 0, 20) &&
+             data.archived is bool;
+    }
+
+    function isValidBook(data) {
+      return isBoundedString(data.title, 1, 160) &&
+             (!('author' in data) || isBoundedString(data.author, 0, 120)) &&
+             (!('subjectId' in data) || isBoundedString(data.subjectId, 0, 128)) &&
+             isBoundedString(data.subjectName, 0, 80) &&
+             (!('semester' in data) || isBoundedString(data.semester, 0, 50)) &&
+             (!('folder' in data) || isBoundedString(data.folder, 0, 50)) &&
+             isBoundedString(data.sourceType, 1, 20) &&
+             (!('fileName' in data) || isBoundedString(data.fileName, 0, 200)) &&
+             isBoundedString(data.localBookId, 1, 128) &&
+             data.totalPages is int && data.totalPages >= 0 && data.totalPages <= 5000 &&
+             data.processedPages is int && data.processedPages >= 0 && data.processedPages <= 5000 &&
+             data.currentPage is int && data.currentPage >= 1 && data.currentPage <= 5000 &&
+             (!('failedPages' in data) || isBoundedIntList(data.failedPages, 500)) &&
+             data.extractionStatus in ['PROCESSING', 'COMPLETE', 'PARTIAL', 'FAILED'] &&
+             (!('extractionError' in data) || isBoundedString(data.extractionError, 0, 500)) &&
+             (!('overview' in data) || isBoundedString(data.overview, 0, 4000)) &&
+             (!('formulaSheet' in data) || isBoundedString(data.formulaSheet, 0, 10000)) &&
+             data.archived is bool &&
+             data.masteryScore is int && data.masteryScore >= 0 && data.masteryScore <= 100 &&
+             (!('bookmarkedPages' in data) || isBoundedIntList(data.bookmarkedPages, 500)) &&
+             (!('highlightsJson' in data) || isBoundedString(data.highlightsJson, 0, 20000));
+    }
+
+    function isValidChapter(data) {
+      return isBoundedString(data.bookId, 1, 128) &&
+             data.chapterNumber is int && data.chapterNumber >= 0 && data.chapterNumber <= 500 &&
+             isBoundedString(data.title, 1, 200) &&
+             data.startPage is int && data.startPage >= 1 && data.startPage <= 5000 &&
+             data.endPage is int && data.endPage >= 1 && data.endPage <= 5000 &&
+             data.estimatedStudyMinutes is int && data.estimatedStudyMinutes >= 1 && data.estimatedStudyMinutes <= 1000 &&
+             data.masteryScore is int && data.masteryScore >= 0 && data.masteryScore <= 100 &&
+             data.masteryStatus in ['NOT_STARTED', 'LEARNING', 'REVIEWING', 'MASTERED'] &&
+             (!('userGoal' in data) || isBoundedString(data.userGoal, 0, 500)) &&
+             (!('quickSummary' in data) || isBoundedString(data.quickSummary, 0, 4000)) &&
+             (!('detailedSummary' in data) || isBoundedString(data.detailedSummary, 0, 12000)) &&
+             (!('bulletSummary' in data) || isBoundedString(data.bulletSummary, 0, 8000)) &&
+             (!('examRevisionSummary' in data) || isBoundedString(data.examRevisionSummary, 0, 8000)) &&
+             (!('learningObjectives' in data) || isBoundedStringList(data.learningObjectives, 30)) &&
+             (!('mainTopics' in data) || isBoundedStringList(data.mainTopics, 40)) &&
+             (!('prerequisites' in data) || isBoundedStringList(data.prerequisites, 30)) &&
+             (!('keyConcepts' in data) || isBoundedStringList(data.keyConcepts, 50)) &&
+             (!('importantDefinitions' in data) || isBoundedStringList(data.importantDefinitions, 50)) &&
+             (!('importantFacts' in data) || isBoundedStringList(data.importantFacts, 50)) &&
+             (!('importantDates' in data) || isBoundedStringList(data.importantDates, 30)) &&
+             (!('formulas' in data) || isBoundedStringList(data.formulas, 50)) &&
+             (!('examples' in data) || isBoundedStringList(data.examples, 30)) &&
+             (!('misconceptions' in data) || isBoundedStringList(data.misconceptions, 30)) &&
+             (!('comparisons' in data) || isBoundedStringList(data.comparisons, 30)) &&
+             (!('difficultSections' in data) || isBoundedStringList(data.difficultSections, 30)) &&
+             (!('relatedChapters' in data) || isBoundedStringList(data.relatedChapters, 20)) &&
+             (!('conceptMapJson' in data) || isBoundedString(data.conceptMapJson, 0, 25000)) &&
+             (!('lastStudiedAt' in data) || (data.lastStudiedAt is timestamp && data.lastStudiedAt <= request.time));
+    }
+
+    function isValidGlossaryEntry(data) {
+      return isBoundedString(data.bookId, 1, 128) &&
+             data.chapterNumber is int && data.chapterNumber >= 0 && data.chapterNumber <= 500 &&
+             isBoundedString(data.term, 1, 120) &&
+             isBoundedString(data.definition, 1, 1500) &&
+             (!('simplifiedExplanation' in data) || isBoundedString(data.simplifiedExplanation, 0, 1000)) &&
+             (!('example' in data) || isBoundedString(data.example, 0, 1000)) &&
+             data.pageReference is int && data.pageReference >= 0 && data.pageReference <= 5000 &&
+             (!('relatedTerms' in data) || isBoundedStringList(data.relatedTerms, 20));
+    }
+
+    function isValidQuestionItem(data) {
+      return isBoundedString(data.bookId, 1, 128) &&
+             (!('bookTitle' in data) || isBoundedString(data.bookTitle, 0, 160)) &&
+             data.chapterNumber is int && data.chapterNumber >= 0 && data.chapterNumber <= 500 &&
+             (!('section' in data) || isBoundedString(data.section, 0, 160)) &&
+             (!('topic' in data) || isBoundedString(data.topic, 0, 160)) &&
+             (!('sourcePage' in data) || (data.sourcePage is int && data.sourcePage >= 0 && data.sourcePage <= 5000)) &&
+             data.difficulty in ['EASY', 'MEDIUM', 'HARD'] &&
+             isBoundedString(data.questionType, 1, 40) &&
+             isBoundedString(data.questionText, 1, 2500) &&
+             (!('options' in data) || isBoundedStringList(data.options, 10)) &&
+             isBoundedString(data.correctAnswer, 1, 2000) &&
+             (!('explanation' in data) || isBoundedString(data.explanation, 0, 3000)) &&
+             (!('learningObjective' in data) || isBoundedString(data.learningObjective, 0, 400)) &&
+             (!('tags' in data) || isBoundedStringList(data.tags, 15)) &&
+             data.marks is int && data.marks >= 1 && data.marks <= 100 &&
+             (!('estimatedSeconds' in data) || (data.estimatedSeconds is int && data.estimatedSeconds >= 5 && data.estimatedSeconds <= 3600)) &&
+             data.bookmarked is bool &&
+             data.hidden is bool &&
+             data.reported is bool &&
+             (!('reportReason' in data) || isBoundedString(data.reportReason, 0, 400)) &&
+             (!('personalNote' in data) || isBoundedString(data.personalNote, 0, 2000)) &&
+             (!('collectionName' in data) || isBoundedString(data.collectionName, 0, 80)) &&
+             data.attempts is int && data.attempts >= 0 && data.attempts <= 10000 &&
+             data.correctCount is int && data.correctCount >= 0 && data.correctCount <= 10000 &&
+             data.incorrectCount is int && data.incorrectCount >= 0 && data.incorrectCount <= 10000 &&
+             (!('lastAnsweredCorrect' in data) || data.lastAnsweredCorrect is bool) &&
+             data.mistakeResolved is bool &&
+             data.aiGenerated is bool;
+    }
+
+    function isValidFlashcard(data) {
+      return isBoundedString(data.bookId, 1, 128) &&
+             data.chapterNumber is int && data.chapterNumber >= 0 && data.chapterNumber <= 500 &&
+             isBoundedString(data.deckName, 1, 100) &&
+             isBoundedString(data.format, 1, 40) &&
+             isBoundedString(data.front, 1, 1500) &&
+             isBoundedString(data.back, 1, 2500) &&
+             (!('hint' in data) || isBoundedString(data.hint, 0, 500)) &&
+             (!('pageReference' in data) || (data.pageReference is int && data.pageReference >= 0 && data.pageReference <= 5000)) &&
+             data.bookmarked is bool &&
+             (data.easeFactor is float || data.easeFactor is int) && data.easeFactor >= 1.0 && data.easeFactor <= 5.0 &&
+             data.intervalDays is int && data.intervalDays >= 0 && data.intervalDays <= 3650 &&
+             data.repetitions is int && data.repetitions >= 0 && data.repetitions <= 1000 &&
+             data.nextReviewAtMillis is int && data.nextReviewAtMillis >= 0 &&
+             data.lastRating in ['UNSEEN', 'EASY', 'MEDIUM', 'HARD'];
+    }
+
+    function isValidExamRecord(data) {
+      return isBoundedString(data.title, 1, 160) &&
+             isBoundedString(data.preset, 1, 50) &&
+             isBoundedStringList(data.bookIds, 20) &&
+             isBoundedStringList(data.questionIds, 200) &&
+             data.durationMinutes is int && data.durationMinutes >= 1 && data.durationMinutes <= 300 &&
+             data.totalMarks is int && data.totalMarks >= 1 && data.totalMarks <= 1000 &&
+             data.allowRevisit is bool &&
+             data.showExplanationEach is bool &&
+             data.status in ['IN_PROGRESS', 'SUBMITTED'] &&
+             (!('answersJson' in data) || isBoundedString(data.answersJson, 0, 50000)) &&
+             (!('flaggedQuestionIds' in data) || isBoundedStringList(data.flaggedQuestionIds, 200)) &&
+             data.score is int && data.score >= 0 && data.score <= 1000 &&
+             (data.percentage is float || data.percentage is int) && data.percentage >= 0.0 && data.percentage <= 100.0 &&
+             data.correctCount is int && data.correctCount >= 0 && data.correctCount <= 200 &&
+             data.incorrectCount is int && data.incorrectCount >= 0 && data.incorrectCount <= 200 &&
+             data.unansweredCount is int && data.unansweredCount >= 0 && data.unansweredCount <= 200 &&
+             data.timeSpentSeconds is int && data.timeSpentSeconds >= 0 && data.timeSpentSeconds <= 36000 &&
+             (!('analyticsJson' in data) || isBoundedString(data.analyticsJson, 0, 20000)) &&
+             (!('recommendedRevision' in data) || isBoundedString(data.recommendedRevision, 0, 3000));
+    }
+
+    function isValidStudyNote(data) {
+      return (!('bookId' in data) || isBoundedString(data.bookId, 0, 128)) &&
+             (!('subjectName' in data) || isBoundedString(data.subjectName, 0, 80)) &&
+             (!('chapterNumber' in data) || (data.chapterNumber is int && data.chapterNumber >= 0 && data.chapterNumber <= 500)) &&
+             (!('linkedPage' in data) || (data.linkedPage is int && data.linkedPage >= 0 && data.linkedPage <= 5000)) &&
+             (!('linkedConcept' in data) || isBoundedString(data.linkedConcept, 0, 160)) &&
+             (!('linkedQuestionId' in data) || isBoundedString(data.linkedQuestionId, 0, 128)) &&
+             isBoundedString(data.title, 1, 160) &&
+             isBoundedString(data.contentMarkdown, 0, 30000) &&
+             (!('tags' in data) || isBoundedStringList(data.tags, 15)) &&
+             data.bookmarked is bool &&
+             data.quickNote is bool;
+    }
+
+    function isValidPlannerTask(data) {
+      return isBoundedString(data.title, 1, 160) &&
+             data.taskType in ['STUDY', 'HOMEWORK', 'ASSIGNMENT', 'PROJECT', 'EXAM', 'REVISION'] &&
+             (!('subjectName' in data) || isBoundedString(data.subjectName, 0, 80)) &&
+             (!('bookId' in data) || isBoundedString(data.bookId, 0, 128)) &&
+             (!('chapterNumber' in data) || (data.chapterNumber is int && data.chapterNumber >= 0 && data.chapterNumber <= 500)) &&
+             data.dueDateMillis is int && data.dueDateMillis >= 0 &&
+             data.estimatedMinutes is int && data.estimatedMinutes >= 1 && data.estimatedMinutes <= 600 &&
+             data.priority in ['LOW', 'MEDIUM', 'HIGH', 'URGENT'] &&
+             data.completed is bool &&
+             data.recurring in ['NONE', 'DAILY', 'WEEKLY'] &&
+             (!('notes' in data) || isBoundedString(data.notes, 0, 1000)) &&
+             data.confidenceRating is int && data.confidenceRating >= 1 && data.confidenceRating <= 5;
+    }
+
+    function isValidFocusSession(data) {
+      return isBoundedString(data.subjectName, 0, 80) &&
+             (!('bookId' in data) || isBoundedString(data.bookId, 0, 128)) &&
+             (!('chapterNumber' in data) || (data.chapterNumber is int && data.chapterNumber >= 0 && data.chapterNumber <= 500)) &&
+             data.mode in ['POMODORO', 'STOPWATCH', 'CUSTOM'] &&
+             data.durationMinutes is int && data.durationMinutes >= 0 && data.durationMinutes <= 600 &&
+             (!('goalText' in data) || isBoundedString(data.goalText, 0, 200)) &&
+             (!('notes' in data) || isBoundedString(data.notes, 0, 1000));
+    }
+
+    function isValidTutorMessage(data) {
+      return isBoundedString(data.bookId, 1, 128) &&
+             data.chapterNumber is int && data.chapterNumber >= 0 && data.chapterNumber <= 500 &&
+             data.pageNumber is int && data.pageNumber >= 0 && data.pageNumber <= 5000 &&
+             isBoundedString(data.mode, 1, 40) &&
+             data.role in ['USER', 'MODEL'] &&
+             isBoundedString(data.text, 1, 15000) &&
+             (!('citations' in data) || isBoundedStringList(data.citations, 20)) &&
+             (!('distinctionNote' in data) || isBoundedString(data.distinctionNote, 0, 500));
+    }
+
+    function isValidCitationEntry(data) {
+      return (!('bookId' in data) || isBoundedString(data.bookId, 0, 128)) &&
+             data.style in ['APA', 'MLA', 'CHICAGO', 'IEEE'] &&
+             (!('authors' in data) || isBoundedString(data.authors, 0, 200)) &&
+             isBoundedString(data.title, 1, 240) &&
+             (!('year' in data) || isBoundedString(data.year, 0, 20)) &&
+             (!('publisher' in data) || isBoundedString(data.publisher, 0, 160)) &&
+             (!('pages' in data) || isBoundedString(data.pages, 0, 40)) &&
+             isBoundedString(data.formattedText, 1, 1000);
+    }
+
+    match /users/{userId} {
+      allow get: if isOwner(userId) && isValidId(userId);
+      allow list: if false;
+      allow create: if isOwner(userId) && isValidId(userId) &&
+                       incoming().userId == userId &&
+                       incoming().keys().hasAll(['userId', 'displayName', 'studyStreakDays', 'weeklyStudyMinutes', 'dailyGoalMinutes', 'createdAt', 'updatedAt']) &&
+                       incoming().keys().hasOnly(['userId', 'displayName', 'email', 'studyStreakDays', 'weeklyStudyMinutes', 'dailyGoalMinutes', 'lastStudyDateKey', 'dashboardSections', 'createdAt', 'updatedAt']) &&
+                       incoming().createdAt is timestamp && incoming().createdAt <= request.time &&
+                       incoming().updatedAt is timestamp && incoming().updatedAt <= request.time &&
+                       isValidUserProfile(incoming());
+      allow update: if isOwner(userId) && isValidId(userId) &&
+                       isValidUserProfile(incoming()) &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().updatedAt is timestamp && incoming().updatedAt <= request.time &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'email', 'studyStreakDays', 'weeklyStudyMinutes', 'dailyGoalMinutes', 'lastStudyDateKey', 'dashboardSections', 'updatedAt']);
+      allow delete: if isOwner(userId) && isValidId(userId);
+
+      match /subjects/{subjectId} {
+        allow get: if isOwner(userId) && isValidId(subjectId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(subjectId) &&
+                         incoming().keys().hasAll(['name', 'semester', 'folder', 'colorHex', 'targetGrade', 'archived', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['name', 'semester', 'folder', 'colorHex', 'targetGrade', 'archived', 'createdAt', 'updatedAt']) &&
+                         incoming().createdAt is timestamp && incoming().createdAt <= request.time &&
+                         incoming().updatedAt is timestamp && incoming().updatedAt <= request.time &&
+                         isValidSubject(incoming());
+        allow update: if isOwner(userId) && isValidId(subjectId) &&
+                         isValidSubject(incoming()) &&
+                         incoming().createdAt == existing().createdAt &&
+                         incoming().updatedAt is timestamp && incoming().updatedAt <= request.time &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['name', 'semester', 'folder', 'colorHex', 'targetGrade', 'archived', 'updatedAt']);
+        allow delete: if isOwner(userId) && isValidId(subjectId);
+      }
+
+      match /books/{bookId} {
+        allow get: if isOwner(userId) && isValidId(bookId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(bookId) &&
+                         incoming().keys().hasAll(['title', 'subjectName', 'sourceType', 'localBookId', 'totalPages', 'processedPages', 'currentPage', 'extractionStatus', 'archived', 'masteryScore', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['title', 'author', 'subjectId', 'subjectName', 'semester', 'folder', 'sourceType', 'fileName', 'localBookId', 'totalPages', 'processedPages', 'currentPage', 'failedPages', 'extractionStatus', 'extractionError', 'overview', 'formulaSheet', 'archived', 'masteryScore', 'bookmarkedPages', 'highlightsJson', 'createdAt', 'updatedAt']) &&
+                         incoming().createdAt is timestamp && incoming().createdAt <= request.time &&
+                         incoming().updatedAt is timestamp && incoming().updatedAt <= request.time &&
+                         isValidBook(incoming());
+        allow update: if isOwner(userId) && isValidId(bookId) &&
+                         isValidBook(incoming()) &&
+                         incoming().createdAt == existing().createdAt &&
+                         incoming().updatedAt is timestamp && incoming().updatedAt <= request.time &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['title', 'author', 'subjectId', 'subjectName', 'semester', 'folder', 'totalPages', 'processedPages', 'currentPage', 'failedPages', 'extractionStatus', 'extractionError', 'overview', 'formulaSheet', 'archived', 'masteryScore', 'bookmarkedPages', 'highlightsJson', 'updatedAt']);
+        allow delete: if isOwner(userId) && isValidId(bookId);
+
+        match /chapters/{chapterId} {
+          allow get: if isOwner(userId) && isValidId(bookId) && isValidId(chapterId);
+          allow list: if isOwner(userId) && isValidId(bookId);
+          allow create: if isOwner(userId) && isValidId(bookId) && isValidId(chapterId) &&
+                           incoming().bookId == bookId &&
+                           incoming().keys().hasAll(['bookId', 'chapterNumber', 'title', 'startPage', 'endPage', 'estimatedStudyMinutes', 'masteryScore', 'masteryStatus', 'createdAt', 'updatedAt']) &&
+                           incoming().keys().hasOnly(['bookId', 'chapterNumber', 'title', 'startPage', 'endPage', 'estimatedStudyMinutes', 'masteryScore', 'masteryStatus', 'userGoal', 'quickSummary', 'detailedSummary', 'bulletSummary', 'examRevisionSummary', 'learningObjectives', 'mainTopics', 'prerequisites', 'keyConcepts', 'importantDefinitions', 'importantFacts', 'importantDates', 'formulas', 'examples', 'misconceptions', 'comparisons', 'difficultSections', 'relatedChapters', 'conceptMapJson', 'lastStudiedAt', 'createdAt', 'updatedAt']) &&
+                           incoming().createdAt is timestamp && incoming().createdAt <= request.time &&
+                           incoming().updatedAt is timestamp && incoming().updatedAt <= request.time &&
+                           isValidChapter(incoming());
+          allow update: if isOwner(userId) && isValidId(bookId) && isValidId(chapterId) &&
+                           isValidChapter(incoming()) &&
+                           incoming().bookId == existing().bookId &&
+                           incoming().createdAt == existing().createdAt &&
+                           incoming().updatedAt is timestamp && incoming().updatedAt <= request.time &&
+                           incoming().diff(existing()).affectedKeys().hasOnly(['title', 'startPage', 'endPage', 'estimatedStudyMinutes', 'masteryScore', 'masteryStatus', 'userGoal', 'quickSummary', 'detailedSummary', 'bulletSummary', 'examRevisionSummary', 'learningObjectives', 'mainTopics', 'prerequisites', 'keyConcepts', 'importantDefinitions', 'importantFacts', 'importantDates', 'formulas', 'examples', 'misconceptions', 'comparisons', 'difficultSections', 'relatedChapters', 'conceptMapJson', 'lastStudiedAt', 'updatedAt']);
+          allow delete: if isOwner(userId) && isValidId(bookId) && isValidId(chapterId);
+        }
+
+        match /glossary/{termId} {
+          allow get: if isOwner(userId) && isValidId(bookId) && isValidId(termId);
+          allow list: if isOwner(userId) && isValidId(bookId);
+          allow create: if isOwner(userId) && isValidId(bookId) && isValidId(termId) &&
+                           incoming().bookId == bookId &&
+                           incoming().keys().hasAll(['bookId', 'chapterNumber', 'term', 'definition', 'pageReference', 'createdAt', 'updatedAt']) &&
+                           incoming().keys().hasOnly(['bookId', 'chapterNumber', 'term', 'definition', 'simplifiedExplanation', 'example', 'pageReference', 'relatedTerms', 'createdAt', 'updatedAt']) &&
+                           incoming().createdAt is timestamp && incoming().createdAt <= request.time &&
+                           incoming().updatedAt is timestamp && incoming().updatedAt <= request.time &&
+                           isValidGlossaryEntry(incoming());
+          allow update: if isOwner(userId) && isValidId(bookId) && isValidId(termId) &&
+                           isValidGlossaryEntry(incoming()) &&
+                           incoming().bookId == existing().bookId &&
+                           incoming().createdAt == existing().createdAt &&
+                           incoming().updatedAt is timestamp && incoming().updatedAt <= request.time &&
+                           incoming().diff(existing()).affectedKeys().hasOnly(['chapterNumber', 'term', 'definition', 'simplifiedExplanation', 'example', 'pageReference', 'relatedTerms', 'updatedAt']);
+          allow delete: if isOwner(userId) && isValidId(bookId) && isValidId(termId);
+        }
+      }
+
+      match /questions/{questionId} {
+        allow get: if isOwner(userId) && isValidId(questionId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(questionId) &&
+                         incoming().keys().hasAll(['bookId', 'chapterNumber', 'difficulty', 'questionType', 'questionText', 'correctAnswer', 'marks', 'bookmarked', 'hidden', 'reported', 'attempts', 'correctCount', 'incorrectCount', 'mistakeResolved', 'aiGenerated', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['bookId', 'bookTitle', 'chapterNumber', 'section', 'topic', 'sourcePage', 'difficulty', 'questionType', 'questionText', 'options', 'correctAnswer', 'explanation', 'learningObjective', 'tags', 'marks', 'estimatedSeconds', 'bookmarked', 'hidden', 'reported', 'reportReason', 'personalNote', 'collectionName', 'attempts', 'correctCount', 'incorrectCount', 'lastAnsweredCorrect', 'mistakeResolved', 'aiGenerated', 'createdAt', 'updatedAt']) &&
+                         incoming().createdAt is timestamp && incoming().createdAt <= request.time &&
+                         incoming().updatedAt is timestamp && incoming().updatedAt <= request.time &&
+                         isValidQuestionItem(incoming());
+        allow update: if isOwner(userId) && isValidId(questionId) &&
+                         isValidQuestionItem(incoming()) &&
+                         incoming().bookId == existing().bookId &&
+                         incoming().createdAt == existing().createdAt &&
+                         incoming().updatedAt is timestamp && incoming().updatedAt <= request.time &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['questionText', 'options', 'correctAnswer', 'explanation', 'difficulty', 'questionType', 'section', 'topic', 'tags', 'marks', 'bookmarked', 'hidden', 'reported', 'reportReason', 'personalNote', 'collectionName', 'attempts', 'correctCount', 'incorrectCount', 'lastAnsweredCorrect', 'mistakeResolved', 'updatedAt']);
+        allow delete: if isOwner(userId) && isValidId(questionId);
+      }
+
+      match /flashcards/{cardId} {
+        allow get: if isOwner(userId) && isValidId(cardId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(cardId) &&
+                         incoming().keys().hasAll(['bookId', 'chapterNumber', 'deckName', 'format', 'front', 'back', 'bookmarked', 'easeFactor', 'intervalDays', 'repetitions', 'nextReviewAtMillis', 'lastRating', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['bookId', 'chapterNumber', 'deckName', 'format', 'front', 'back', 'hint', 'pageReference', 'bookmarked', 'easeFactor', 'intervalDays', 'repetitions', 'nextReviewAtMillis', 'lastRating', 'createdAt', 'updatedAt']) &&
+                         incoming().createdAt is timestamp && incoming().createdAt <= request.time &&
+                         incoming().updatedAt is timestamp && incoming().updatedAt <= request.time &&
+                         isValidFlashcard(incoming());
+        allow update: if isOwner(userId) && isValidId(cardId) &&
+                         isValidFlashcard(incoming()) &&
+                         incoming().bookId == existing().bookId &&
+                         incoming().createdAt == existing().createdAt &&
+                         incoming().updatedAt is timestamp && incoming().updatedAt <= request.time &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['deckName', 'format', 'front', 'back', 'hint', 'pageReference', 'bookmarked', 'easeFactor', 'intervalDays', 'repetitions', 'nextReviewAtMillis', 'lastRating', 'updatedAt']);
+        allow delete: if isOwner(userId) && isValidId(cardId);
+      }
+
+      match /exams/{examId} {
+        allow get: if isOwner(userId) && isValidId(examId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(examId) &&
+                         incoming().keys().hasAll(['title', 'preset', 'bookIds', 'questionIds', 'durationMinutes', 'totalMarks', 'allowRevisit', 'showExplanationEach', 'status', 'score', 'percentage', 'correctCount', 'incorrectCount', 'unansweredCount', 'timeSpentSeconds', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['title', 'preset', 'bookIds', 'questionIds', 'durationMinutes', 'totalMarks', 'allowRevisit', 'showExplanationEach', 'status', 'answersJson', 'flaggedQuestionIds', 'score', 'percentage', 'correctCount', 'incorrectCount', 'unansweredCount', 'timeSpentSeconds', 'analyticsJson', 'recommendedRevision', 'createdAt', 'updatedAt']) &&
+                         incoming().createdAt is timestamp && incoming().createdAt <= request.time &&
+                         incoming().updatedAt is timestamp && incoming().updatedAt <= request.time &&
+                         isValidExamRecord(incoming());
+        allow update: if isOwner(userId) && isValidId(examId) &&
+                         existing().status != 'SUBMITTED' &&
+                         isValidExamRecord(incoming()) &&
+                         incoming().createdAt == existing().createdAt &&
+                         incoming().updatedAt is timestamp && incoming().updatedAt <= request.time &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['status', 'answersJson', 'flaggedQuestionIds', 'score', 'percentage', 'correctCount', 'incorrectCount', 'unansweredCount', 'timeSpentSeconds', 'analyticsJson', 'recommendedRevision', 'updatedAt']);
+        allow delete: if isOwner(userId) && isValidId(examId);
+      }
+
+      match /notes/{noteId} {
+        allow get: if isOwner(userId) && isValidId(noteId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(noteId) &&
+                         incoming().keys().hasAll(['title', 'contentMarkdown', 'bookmarked', 'quickNote', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['bookId', 'subjectName', 'chapterNumber', 'linkedPage', 'linkedConcept', 'linkedQuestionId', 'title', 'contentMarkdown', 'tags', 'bookmarked', 'quickNote', 'createdAt', 'updatedAt']) &&
+                         incoming().createdAt is timestamp && incoming().createdAt <= request.time &&
+                         incoming().updatedAt is timestamp && incoming().updatedAt <= request.time &&
+                         isValidStudyNote(incoming());
+        allow update: if isOwner(userId) && isValidId(noteId) &&
+                         isValidStudyNote(incoming()) &&
+                         incoming().createdAt == existing().createdAt &&
+                         incoming().updatedAt is timestamp && incoming().updatedAt <= request.time &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['bookId', 'subjectName', 'chapterNumber', 'linkedPage', 'linkedConcept', 'linkedQuestionId', 'title', 'contentMarkdown', 'tags', 'bookmarked', 'quickNote', 'updatedAt']);
+        allow delete: if isOwner(userId) && isValidId(noteId);
+      }
+
+      match /plannerTasks/{taskId} {
+        allow get: if isOwner(userId) && isValidId(taskId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(taskId) &&
+                         incoming().keys().hasAll(['title', 'taskType', 'dueDateMillis', 'estimatedMinutes', 'priority', 'completed', 'recurring', 'confidenceRating', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['title', 'taskType', 'subjectName', 'bookId', 'chapterNumber', 'dueDateMillis', 'estimatedMinutes', 'priority', 'completed', 'recurring', 'notes', 'confidenceRating', 'createdAt', 'updatedAt']) &&
+                         incoming().createdAt is timestamp && incoming().createdAt <= request.time &&
+                         incoming().updatedAt is timestamp && incoming().updatedAt <= request.time &&
+                         isValidPlannerTask(incoming());
+        allow update: if isOwner(userId) && isValidId(taskId) &&
+                         isValidPlannerTask(incoming()) &&
+                         incoming().createdAt == existing().createdAt &&
+                         incoming().updatedAt is timestamp && incoming().updatedAt <= request.time &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['title', 'taskType', 'subjectName', 'bookId', 'chapterNumber', 'dueDateMillis', 'estimatedMinutes', 'priority', 'completed', 'recurring', 'notes', 'confidenceRating', 'updatedAt']);
+        allow delete: if isOwner(userId) && isValidId(taskId);
+      }
+
+      match /focusSessions/{sessionId} {
+        allow get: if isOwner(userId) && isValidId(sessionId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(sessionId) &&
+                         incoming().keys().hasAll(['subjectName', 'mode', 'durationMinutes', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['subjectName', 'bookId', 'chapterNumber', 'mode', 'durationMinutes', 'goalText', 'notes', 'createdAt', 'updatedAt']) &&
+                         incoming().createdAt is timestamp && incoming().createdAt <= request.time &&
+                         incoming().updatedAt is timestamp && incoming().updatedAt <= request.time &&
+                         isValidFocusSession(incoming());
+        allow update: if isOwner(userId) && isValidId(sessionId) &&
+                         isValidFocusSession(incoming()) &&
+                         incoming().createdAt == existing().createdAt &&
+                         incoming().updatedAt is timestamp && incoming().updatedAt <= request.time &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['subjectName', 'bookId', 'chapterNumber', 'durationMinutes', 'goalText', 'notes', 'updatedAt']);
+        allow delete: if isOwner(userId) && isValidId(sessionId);
+      }
+
+      match /tutorMessages/{messageId} {
+        allow get: if isOwner(userId) && isValidId(messageId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(messageId) &&
+                         incoming().keys().hasAll(['bookId', 'chapterNumber', 'pageNumber', 'mode', 'role', 'text', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['bookId', 'chapterNumber', 'pageNumber', 'mode', 'role', 'text', 'citations', 'distinctionNote', 'createdAt', 'updatedAt']) &&
+                         incoming().createdAt is timestamp && incoming().createdAt <= request.time &&
+                         incoming().updatedAt is timestamp && incoming().updatedAt <= request.time &&
+                         isValidTutorMessage(incoming());
+        allow update: if false;
+        allow delete: if isOwner(userId) && isValidId(messageId);
+      }
+
+      match /citations/{citationId} {
+        allow get: if isOwner(userId) && isValidId(citationId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(citationId) &&
+                         incoming().keys().hasAll(['style', 'title', 'formattedText', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['bookId', 'style', 'authors', 'title', 'year', 'publisher', 'pages', 'formattedText', 'createdAt', 'updatedAt']) &&
+                         incoming().createdAt is timestamp && incoming().createdAt <= request.time &&
+                         incoming().updatedAt is timestamp && incoming().updatedAt <= request.time &&
+                         isValidCitationEntry(incoming());
+        allow update: if isOwner(userId) && isValidId(citationId) &&
+                         isValidCitationEntry(incoming()) &&
+                         incoming().createdAt == existing().createdAt &&
+                         incoming().updatedAt is timestamp && incoming().updatedAt <= request.time &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['bookId', 'style', 'authors', 'title', 'year', 'publisher', 'pages', 'formattedText', 'updatedAt']);
+        allow delete: if isOwner(userId) && isValidId(citationId);
+      }
+    }
+  }
+}
