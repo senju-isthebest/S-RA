@@ -29,6 +29,19 @@ class AiProviderRouterTest {
     }
 
     @Test
+    fun fallsBackOnTimeout() = runBlocking {
+        val primary = FakeProvider("primary", "p") {
+            throw AiProviderException(AiFailureKind.TIMEOUT, "timed out")
+        }
+        val backup = FakeProvider("backup", "b") {
+            AiTextResponse("recovered", "backup", "b")
+        }
+        val result = AiProviderRouter(listOf(primary, backup)).generate(AiTextRequest("test"))
+        assertEquals("recovered", result.text)
+        assertEquals("backup", result.providerId)
+    }
+
+    @Test
     fun doesNotFallbackOnInvalidRequest() = runBlocking {
         var backupCalled = false
         val primary = FakeProvider("primary", "p") {
@@ -40,6 +53,24 @@ class AiProviderRouterTest {
         }
         assertThrows(AiProviderException::class.java) {
             runBlocking { AiProviderRouter(listOf(primary, backup)).generate(AiTextRequest("test")) }
+        }
+        assertEquals(false, backupCalled)
+    }
+
+    @Test
+    fun cancellationNeverCallsBackup() = runBlocking {
+        var backupCalled = false
+        val primary = FakeProvider("primary", "p") {
+            throw CancellationException("cancelled")
+        }
+        val backup = FakeProvider("backup", "b") {
+            backupCalled = true
+            AiTextResponse("should not happen", "backup", "b")
+        }
+        try {
+            AiProviderRouter(listOf(primary, backup)).generate(AiTextRequest("test"))
+        } catch (_: CancellationException) {
+            // Expected: cancellation is propagated without retrying.
         }
         assertEquals(false, backupCalled)
     }
@@ -60,34 +91,3 @@ class AiProviderRouterTest {
         assertEquals(AiFailureKind.TEMPORARY_UNAVAILABLE, error?.kind)
     }
 }
-
-    @Test
-    fun fallsBackOnTimeout() = runBlocking {
-        val primary = FakeProvider("primary", "p") {
-            throw AiProviderException(AiFailureKind.TIMEOUT, "timed out")
-        }
-        val backup = FakeProvider("backup", "b") {
-            AiTextResponse("recovered", "backup", "b")
-        }
-        val result = AiProviderRouter(listOf(primary, backup)).generate(AiTextRequest("test"))
-        assertEquals("recovered", result.text)
-        assertEquals("backup", result.providerId)
-    }
-
-    @Test
-    fun cancellationNeverCallsBackup() = runBlocking {
-        var backupCalled = false
-        val primary = FakeProvider("primary", "p") {
-            throw CancellationException("cancelled")
-        }
-        val backup = FakeProvider("backup", "b") {
-            backupCalled = true
-            AiTextResponse("should not happen", "backup", "b")
-        }
-        try {
-            AiProviderRouter(listOf(primary, backup)).generate(AiTextRequest("test"))
-        } catch (_: CancellationException) {
-            // Expected: cancellation is propagated without retrying.
-        }
-        assertEquals(false, backupCalled)
-    }
