@@ -66,6 +66,12 @@ service cloud.firestore {
              (!('folder' in data) || isBoundedString(data.folder, 0, 50)) &&
              isBoundedString(data.sourceType, 1, 20) &&
              (!('fileName' in data) || isBoundedString(data.fileName, 0, 200)) &&
+             (!('storagePath' in data) || isBoundedString(data.storagePath, 0, 256)) &&
+             (!('sourceSizeBytes' in data) || (data.sourceSizeBytes is int && data.sourceSizeBytes >= 0 && data.sourceSizeBytes <= 83886080)) &&
+             (!('sourceSha256' in data) || isBoundedString(data.sourceSha256, 0, 64)) &&
+             (!('syncStatus' in data) || data.syncStatus in ['LOCAL', 'UPLOADING', 'SYNCED', 'FAILED']) &&
+             (!('cloudPageCount' in data) || (data.cloudPageCount is int && data.cloudPageCount >= 0 && data.cloudPageCount <= 5000)) &&
+             (!('pagesSyncStatus' in data) || data.pagesSyncStatus in ['LOCAL', 'UPLOADING', 'SYNCED', 'FAILED']) &&
              isBoundedString(data.localBookId, 1, 128) &&
              data.totalPages is int && data.totalPages >= 0 && data.totalPages <= 5000 &&
              data.processedPages is int && data.processedPages >= 0 && data.processedPages <= 5000 &&
@@ -294,7 +300,7 @@ service cloud.firestore {
         allow list: if isOwner(userId);
         allow create: if isOwner(userId) && isValidId(bookId) &&
                          incoming().keys().hasAll(['title', 'subjectName', 'sourceType', 'localBookId', 'totalPages', 'processedPages', 'currentPage', 'extractionStatus', 'archived', 'masteryScore', 'createdAt', 'updatedAt']) &&
-                         incoming().keys().hasOnly(['title', 'author', 'subjectId', 'subjectName', 'semester', 'folder', 'sourceType', 'fileName', 'localBookId', 'totalPages', 'processedPages', 'currentPage', 'failedPages', 'extractionStatus', 'extractionError', 'overview', 'formulaSheet', 'archived', 'masteryScore', 'bookmarkedPages', 'highlightsJson', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['title', 'author', 'subjectId', 'subjectName', 'semester', 'folder', 'sourceType', 'fileName', 'storagePath', 'sourceSizeBytes', 'sourceSha256', 'syncStatus', 'cloudPageCount', 'pagesSyncStatus', 'localBookId', 'totalPages', 'processedPages', 'currentPage', 'failedPages', 'extractionStatus', 'extractionError', 'overview', 'formulaSheet', 'archived', 'masteryScore', 'bookmarkedPages', 'highlightsJson', 'createdAt', 'updatedAt']) &&
                          incoming().createdAt is timestamp && incoming().createdAt <= request.time &&
                          incoming().updatedAt is timestamp && incoming().updatedAt <= request.time &&
                          isValidBook(incoming());
@@ -302,9 +308,26 @@ service cloud.firestore {
                          isValidBook(incoming()) &&
                          incoming().createdAt == existing().createdAt &&
                          incoming().updatedAt is timestamp && incoming().updatedAt <= request.time &&
-                         incoming().diff(existing()).affectedKeys().hasOnly(['title', 'author', 'subjectId', 'subjectName', 'semester', 'folder', 'totalPages', 'processedPages', 'currentPage', 'failedPages', 'extractionStatus', 'extractionError', 'overview', 'formulaSheet', 'archived', 'masteryScore', 'bookmarkedPages', 'highlightsJson', 'updatedAt']);
+                         incoming().diff(existing()).affectedKeys().hasOnly(['title', 'author', 'subjectId', 'subjectName', 'semester', 'folder', 'storagePath', 'sourceSizeBytes', 'sourceSha256', 'syncStatus', 'cloudPageCount', 'pagesSyncStatus', 'totalPages', 'processedPages', 'currentPage', 'failedPages', 'extractionStatus', 'extractionError', 'overview', 'formulaSheet', 'archived', 'masteryScore', 'bookmarkedPages', 'highlightsJson', 'updatedAt']);
         allow delete: if isOwner(userId) && isValidId(bookId);
 
+        match /pages/{pageId} {
+          allow get: if isOwner(userId) && isValidId(bookId) && pageId.matches('^p[0-9]{5}_c[0-9]{3}$');
+          allow list: if isOwner(userId) && isValidId(bookId);
+          allow create, update: if isOwner(userId) && isValidId(bookId) &&
+                        pageId.matches('^p[0-9]{5}_c[0-9]{3}$') &&
+                        incoming().keys().hasAll(['pageNumber', 'chunkIndex', 'chunkCount', 'text', 'extractionMethod', 'updatedAt']) &&
+                        incoming().keys().hasOnly(['pageNumber', 'chunkIndex', 'chunkCount', 'text', 'extractionMethod', 'error', 'updatedAt']) &&
+                        incoming().pageNumber is int && incoming().pageNumber >= 1 && incoming().pageNumber <= 5000 &&
+                        incoming().chunkIndex is int && incoming().chunkIndex >= 0 && incoming().chunkIndex <= 99 &&
+                        incoming().chunkCount is int && incoming().chunkCount >= 1 && incoming().chunkCount <= 100 &&
+                        incoming().chunkIndex < incoming().chunkCount &&
+                        isBoundedString(incoming().text, 0, 9000) &&
+                        isBoundedString(incoming().extractionMethod, 1, 40) &&
+                        (!('error' in incoming()) || isBoundedString(incoming().error, 0, 500)) &&
+                        incoming().updatedAt is timestamp && incoming().updatedAt <= request.time;
+          allow delete: if isOwner(userId) && isValidId(bookId) && pageId.matches('^p[0-9]{5}_c[0-9]{3}$');
+        }
         match /chapters/{chapterId} {
           allow get: if isOwner(userId) && isValidId(bookId) && isValidId(chapterId);
           allow list: if isOwner(userId) && isValidId(bookId);
