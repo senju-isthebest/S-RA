@@ -46,11 +46,24 @@ class OllamaTextProvider(
 
     private fun isPrivateHttpHost(host: String): Boolean {
         val normalized = host.lowercase()
-        if (normalized == "localhost" || normalized == "::1" || normalized == "127.0.0.1" || normalized.endsWith(".localhost")) return true
-        if (normalized.startsWith("10.") || normalized.startsWith("192.168.")) return true
-        if (normalized.startsWith("172.")) {
-            val second = normalized.substringAfter("172.").substringBefore(".").toIntOrNull()
-            if (second != null && second in 16..31) return true
+        if (normalized == "localhost" || normalized.endsWith(".localhost")) return true
+
+        // Parse literal IPv4 instead of prefix-matching hostnames such as "10.attacker.example".
+        val ipv4 = normalized.split('.')
+        if (ipv4.size == 4 && ipv4.all { octet -> octet.toIntOrNull()?.let { it in 0..255 } == true }) {
+            val octets = ipv4.map { it.toInt() }
+            return octets[0] == 10 ||
+                octets[0] == 127 ||
+                (octets[0] == 192 && octets[1] == 168) ||
+                (octets[0] == 172 && octets[1] in 16..31)
+        }
+
+        // Only parse IPv6 literals (containing ':'), avoiding DNS lookups for hostnames.
+        if (':' in normalized) {
+            val address = runCatching { java.net.InetAddress.getByName(normalized) }.getOrNull() ?: return false
+            val bytes = address.address
+            val isUniqueLocalIpv6 = bytes.size == 16 && (bytes[0].toInt() and 0xfe) == 0xfc
+            return address.isLoopbackAddress || address.isLinkLocalAddress || address.isSiteLocalAddress || isUniqueLocalIpv6
         }
         return false
     }
