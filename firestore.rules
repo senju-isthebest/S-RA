@@ -320,7 +320,7 @@ service cloud.firestore {
                         incoming().keys().hasOnly(['pageNumber', 'chunkIndex', 'chunkCount', 'text', 'extractionMethod', 'error', 'updatedAt']) &&
                         incoming().pageNumber is int && incoming().pageNumber >= 1 && incoming().pageNumber <= 5000 &&
                         incoming().chunkIndex is int && incoming().chunkIndex >= 0 && incoming().chunkIndex <= 999 &&
-                        incoming().chunkCount is int && incoming().chunkCount >= 1 && incoming().chunkCount <= 1000 &&
+                        incoming().chunkCount is int && incoming().chunkCount >= 1 && incoming().chunkCount <= 100 &&
                         incoming().chunkIndex < incoming().chunkCount &&
                         isBoundedString(incoming().text, 0, 9000) &&
                         isBoundedString(incoming().extractionMethod, 1, 40) &&
