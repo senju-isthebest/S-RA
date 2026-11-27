@@ -350,7 +350,7 @@ listOf("questions", "flashcards", "notes", "plannerTasks", "focusSessions", "tut
                 if (q.id.isNotBlank() && ref.get().await().exists()) {
                     listOf("attempts", "correctCount", "incorrectCount", "lastAnsweredCorrect", "mistakeResolved",
                         "bookmarked", "hidden", "reported", "reportReason", "personalNote", "collectionName", "createdAt")
-                        .forEach(payload::remove)
+                        .forEach { payload.remove(it) }
                     batch.set(ref, payload, com.google.firebase.firestore.SetOptions.merge())
                 } else {
                     batch.set(ref, payload)
