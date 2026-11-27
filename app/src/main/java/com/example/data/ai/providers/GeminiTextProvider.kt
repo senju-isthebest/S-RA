@@ -50,7 +50,7 @@ class GeminiTextProvider(
             val kind = when {
                 "429" in message || "quota" in message || "rate" in message -> AiFailureKind.RATE_LIMITED
                 "timeout" in message || "timed out" in message -> AiFailureKind.TIMEOUT
-                "network" in message || "unavailable" in message || "503" in message || "502" in message -> AiFailureKind.NETWORK
+                "network" in message || "unavailable" in message || "503" in message || "502" in message || "500" in message || "504" in message -> AiFailureKind.NETWORK
                 "401" in message || "403" in message || "permission" in message -> AiFailureKind.AUTHENTICATION
                 else -> AiFailureKind.UNKNOWN
             }
