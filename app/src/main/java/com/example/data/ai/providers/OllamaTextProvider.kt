@@ -112,35 +112,36 @@ class OllamaTextProvider(
             .build()
 
         client.newCall(httpRequest).execute().use { response ->
-                val body = response.body?.string().orEmpty()
-                if (!response.isSuccessful) {
-                    val kind = when (response.code) {
-                        401, 403 -> AiFailureKind.AUTHENTICATION
-                        408 -> AiFailureKind.TIMEOUT
-                        429 -> AiFailureKind.RATE_LIMITED
-                        in 500..599 -> AiFailureKind.TEMPORARY_UNAVAILABLE
-                        else -> AiFailureKind.INVALID_REQUEST
-                    }
-                    throw AiProviderException(kind, "Ollama returned HTTP ${response.code}.")
+            val body = response.body?.string().orEmpty()
+            if (!response.isSuccessful) {
+                val kind = when (response.code) {
+                    401, 403 -> AiFailureKind.AUTHENTICATION
+                    408 -> AiFailureKind.TIMEOUT
+                    429 -> AiFailureKind.RATE_LIMITED
+                    in 500..599 -> AiFailureKind.TEMPORARY_UNAVAILABLE
+                    else -> AiFailureKind.INVALID_REQUEST
                 }
-                val text = try {
-                    JSONObject(body).optString("response").trim()
-                } catch (e: Exception) {
-                    throw AiProviderException(AiFailureKind.INVALID_RESPONSE, "Invalid Ollama response.", e)
-                }
-                if (text.isBlank()) {
-                    throw AiProviderException(AiFailureKind.INVALID_RESPONSE, "Ollama returned empty text.")
-                }
+                throw AiProviderException(kind, "Ollama returned HTTP ${response.code}.")
+            }
+
+            val text = try {
+                JSONObject(body).optString("response").trim()
+            } catch (e: Exception) {
+                throw AiProviderException(AiFailureKind.INVALID_RESPONSE, "Invalid Ollama response.", e)
+            }
+            if (text.isBlank()) {
+                throw AiProviderException(AiFailureKind.INVALID_RESPONSE, "Ollama returned empty text.")
+            }
             AiTextResponse(text, providerId, modelId)
         }
     } catch (cancelled: CancellationException) {
-            throw cancelled
-        } catch (e: AiProviderException) {
-            throw e
-        } catch (e: SocketTimeoutException) {
-            throw AiProviderException(AiFailureKind.TIMEOUT, "Ollama request timed out.", e)
-        } catch (e: IOException) {
-            throw AiProviderException(AiFailureKind.NETWORK, "Could not reach Ollama.", e)
+        throw cancelled
+    } catch (e: AiProviderException) {
+        throw e
+    } catch (e: SocketTimeoutException) {
+        throw AiProviderException(AiFailureKind.TIMEOUT, "Ollama request timed out.", e)
+    } catch (e: IOException) {
+        throw AiProviderException(AiFailureKind.NETWORK, "Could not reach Ollama.", e)
     }
 
     companion object {
