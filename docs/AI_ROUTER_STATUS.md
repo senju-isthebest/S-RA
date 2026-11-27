@@ -11,14 +11,14 @@
 - Three plain-text features use the router: Reading Assistant, Equation Solver, and Chapter Comparison/Gap Analysis.
 - Structured book analysis, chapter intelligence, question generation, flashcards, and teach-back retain Gemini schema-based primary generation and can fall back to configured Ollama JSON mode on transient failures or malformed primary JSON; fallback JSON is validated and repaired once.
 - Non-image tutor streaming can fall back to a configured Ollama text request when Gemini fails before emitting content. It does not switch providers after partial output.
-- OCR page-image requests can fall back to configured Ollama vision models; the configured model must support images.
+- OCR page-image requests and image-context tutor requests can fall back to configured Ollama vision models; the configured model must support images. Tutor fallback is only before any streamed content.
 - Unit tests for fallback, timeout, cancellation, non-fallback failures, all-provider outage, endpoint validation, and Ollama HTTP request/response/error handling using MockWebServer.
 - OkHttp dependency enabled for the Ollama adapter.
 
 ## Not integrated yet
 - No secured remote AI gateway/server has been deployed. This adapter does not support gateway auth headers, so a public Ollama endpoint is not a safe/usable fallback; use local/private-network endpoints or wait for an authenticated gateway.
 - Fallback support for structured JSON is implemented, but the Ollama path does not enforce the Firebase response schema itself; application JSON parsing/validation and one repair attempt are used.
-- Tutor requests that include a page image remain Gemini-only; image-based tutor fallback is not implemented.
+- Tutor requests that include a page image can fall back to the configured Ollama vision model if Gemini fails before emitting any output; no provider switch occurs after partial output.
 - Runtime provider settings UI is not implemented; fallback configuration is build-time only.
 - CI failure was traced to `android-actions/setup-android` attempting to install the obsolete SDK package `tools`. The workflow now installs only the required Android 36 platform/build-tools/platform-tools packages and is manual-trigger-only to prevent notification spam. A successful run has not yet been confirmed.
 
