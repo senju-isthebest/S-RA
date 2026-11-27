@@ -55,6 +55,7 @@ class OllamaTextProvider(
             return octets[0] == 10 ||
                 octets[0] == 127 ||
                 (octets[0] == 192 && octets[1] == 168) ||
+                (octets[0] == 169 && octets[1] == 254) ||
                 (octets[0] == 172 && octets[1] in 16..31)
         }
 
