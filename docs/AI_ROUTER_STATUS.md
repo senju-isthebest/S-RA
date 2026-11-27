@@ -20,7 +20,7 @@
 - Fallback support for structured JSON is implemented, but the Ollama path does not enforce the Firebase response schema itself; application JSON parsing/validation and one repair attempt are used.
 - Image-context tutor fallback is implemented through Ollama Vision if Gemini fails before emitting any output; no provider switch occurs after partial output.
 - Runtime provider settings UI is not implemented; fallback configuration is build-time only.
-- CI failure was traced to `android-actions/setup-android` attempting to install the obsolete SDK package `tools`. The workflow no longer uses `android-actions/setup-android` (which attempted to install obsolete `tools`); it uses the runner's SDK directly, installs only the required Android 36 platform/build-tools/platform-tools packages, and is manual-trigger-only to prevent notification spam. A successful run has not yet been confirmed.
+- CI was repaired to explicitly install the Android SDK packages and run both unit tests and a debug APK build. It triggers on pushes to `feature/ai-provider-router` and can also be started manually. CI-only placeholder Firebase config is created during the run; it is not committed and does not enable real Firebase authentication. A successful run has not yet been confirmed.
 
 ## Build-time fallback configuration
 - Set `OLLAMA_BASE_URL` to a trusted Ollama endpoint.
