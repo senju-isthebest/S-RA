@@ -21,6 +21,8 @@ class CloudBookSyncManager(
         const val MAX_SOURCE_BYTES = 80L * 1024L * 1024L
         const val PAGE_CHUNK_CHARS = 8_000
         const val MAX_BATCH_OPERATIONS = 450
+        const val MAX_PAGE_TEXT_CHARS = 100_000
+        const val MAX_TOTAL_TEXT_CHARS = 25_000_000
     }
 
     private fun uid() = auth.currentUser?.uid
@@ -132,14 +134,16 @@ class CloudBookSyncManager(
         val userId = uid()
         validateBookId(bookId)
         require(pages.size <= 5_000) { "Page count exceeds the supported limit." }
+        require(pages.sumOf { it.text.length.toLong() } <= MAX_TOTAL_TEXT_CHARS) { "Extracted text exceeds the cloud sync limit." }
         val pagesRef = bookRef(userId, bookId).collection("pages")
         return try {
             bookRef(userId, bookId).update(mapOf("pagesSyncStatus" to "UPLOADING", "updatedAt" to FieldValue.serverTimestamp())).await()
             val existing = pagesRef.get().await()
             val records = pages.flatMap { page ->
                 require(page.pageNumber in 1..5000) { "Invalid page number." }
+                require(page.text.length <= MAX_PAGE_TEXT_CHARS) { "Page text exceeds the supported limit." }
                 val chunks = page.text.chunked(PAGE_CHUNK_CHARS).ifEmpty { listOf("") }
-                require(chunks.size <= 1_000) { "Page text has too many chunks." }
+                require(chunks.size <= 100) { "Page text has too many chunks." }
                 chunks.mapIndexed { chunkIndex, chunk ->
                     val docId = "p%05d_c%03d".format(page.pageNumber, chunkIndex)
                     val payload = mutableMapOf<String, Any>(
