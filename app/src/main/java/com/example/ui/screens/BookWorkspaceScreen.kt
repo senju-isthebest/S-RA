@@ -433,11 +433,11 @@ private fun ContentsPanel(
                     accentBorder = if (isSelected) SoraViolet else null,
                     modifier = Modifier.fillMaxWidth()
                 ) {
+                    val generatedCount = listOf(ch.intelligenceGenerated, ch.questionsGenerated, ch.flashcardsGenerated).count { it }
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         SoraMasteryRing(progressPercent = ch.masteryScore.toInt(), size = 48.dp)
                         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                             Text("Chapter ${ch.chapterNumber}: ${ch.title}", style = MaterialTheme.typography.titleSmall)
-                            val generatedCount = listOf(ch.intelligenceGenerated, ch.questionsGenerated, ch.flashcardsGenerated).count { it }
                             Text("AI resources: " + generatedCount + "/3 • " + ch.generationStatus, style = MaterialTheme.typography.labelSmall, color = if (generatedCount == 3) SoraSuccess else SoraWarning)
                             Text("Pages ${ch.startPage}-${ch.endPage} • Est. ${ch.estimatedStudyMinutes}m • ${ch.masteryStatus}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
