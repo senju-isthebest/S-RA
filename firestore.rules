@@ -349,7 +349,7 @@ service cloud.firestore {
                            incoming().bookId == existing().bookId &&
                            incoming().createdAt == existing().createdAt &&
                            incoming().updatedAt is timestamp && incoming().updatedAt <= request.time &&
-                           incoming().diff(existing()).affectedKeys().hasOnly(['title', 'startPage', 'endPage', 'estimatedStudyMinutes', 'masteryScore', 'masteryStatus', 'userGoal', 'quickSummary', 'detailedSummary', 'bulletSummary', 'examRevisionSummary', 'learningObjectives', 'mainTopics', 'prerequisites', 'keyConcepts', 'importantDefinitions', 'importantFacts', 'importantDates', 'formulas', 'examples', 'misconceptions', 'comparisons', 'difficultSections', 'relatedChapters', 'conceptMapJson', 'lastStudiedAt', 'updatedAt']);
+                           incoming().diff(existing()).affectedKeys().hasOnly(['title', 'startPage', 'endPage', 'estimatedStudyMinutes', 'masteryScore', 'masteryStatus', 'intelligenceGenerated', 'questionsGenerated', 'flashcardsGenerated', 'generationStatus', 'generationAttempts', 'generationError', 'userGoal', 'quickSummary', 'detailedSummary', 'bulletSummary', 'examRevisionSummary', 'learningObjectives', 'mainTopics', 'prerequisites', 'keyConcepts', 'importantDefinitions', 'importantFacts', 'importantDates', 'formulas', 'examples', 'misconceptions', 'comparisons', 'difficultSections', 'relatedChapters', 'conceptMapJson', 'lastStudiedAt', 'updatedAt']);
           allow delete: if isOwner(userId) && isValidId(bookId) && isValidId(chapterId);
         }
 
