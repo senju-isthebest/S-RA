@@ -204,6 +204,20 @@ test("Book, Chapter, and Glossary CRUD mirrors Kotlin payloads & rejects ghost f
     })
   );
 
+  await assertSucceeds(chapRef.update({
+    intelligenceGenerated: true,
+    questionsGenerated: false,
+    flashcardsGenerated: false,
+    generationStatus: "PARTIAL",
+    generationAttempts: 1,
+    generationError: "Flashcard generation is pending",
+    updatedAt: new Date(Date.now() - 1000),
+  }));
+  await assertFails(chapRef.update({
+    generationStatus: "INVALID_STATE",
+    updatedAt: new Date(Date.now() - 1000),
+  }));
+
   // Immutable createdAt cannot be modified
   await assertFails(
     chapRef.update({
