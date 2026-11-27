@@ -36,6 +36,31 @@ class AiProviderRouterTest {
     }
 
     @Test
+    fun doesNotFallbackOnUnknownFailure() = runBlocking {
+        var backupCalled = false
+        val primary = FakeProvider("primary", "p") {
+            throw AiProviderException(AiFailureKind.UNKNOWN, "unexpected")
+        }
+        val backup = FakeProvider("backup", "b") {
+            backupCalled = true
+            AiTextResponse("should not run", "backup", "b")
+        }
+        try {
+            AiProviderRouter(listOf(primary, backup)).generate(AiTextRequest("test"))
+        } catch (_: AiProviderException) {
+            // Expected: unknown failures are not retried.
+        }
+        assertEquals(false, backupCalled)
+    }
+
+    @Test
+    fun rejectsRouterWithoutProviders() = runBlocking {
+        assertThrows(IllegalArgumentException::class.java) {
+            runBlocking { AiProviderRouter(emptyList()).generate(AiTextRequest("test")) }
+        }
+    }
+
+    @Test
     fun fallsBackOnTimeout() = runBlocking {
         val primary = FakeProvider("primary", "p") {
             throw AiProviderException(AiFailureKind.TIMEOUT, "timed out")
