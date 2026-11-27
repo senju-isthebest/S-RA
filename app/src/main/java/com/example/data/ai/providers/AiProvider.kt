@@ -1,7 +1,5 @@
 package com.example.data.ai.providers
 
-import kotlinx.coroutines.CancellationException
-
 data class AiTextRequest(
     val prompt: String,
     val systemInstruction: String? = null,
