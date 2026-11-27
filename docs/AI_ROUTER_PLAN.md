@@ -32,6 +32,7 @@ Android app -> authenticated AI Gateway -> provider adapters
 - Apply per-user quotas, request-size limits, concurrency controls, timeouts, and audit-safe error logging.
 - Do not log book contents or prompts by default.
 - Require HTTPS for remotely hosted provider endpoints. Plain HTTP is allowed only for loopback or private IPv4 addresses.
+- Current Ollama adapter does not support authentication headers; do not use an exposed public endpoint. An authenticated gateway is a future server-side integration.
 
 ## Ollama note
 Local Ollama is free to run but uses the host's hardware and must be reachable to the app. The endpoint can be configured with Gradle property/environment variable `OLLAMA_BASE_URL`; model via `OLLAMA_MODEL`. A public shared Ollama endpoint must be secured and rate-limited before use.
