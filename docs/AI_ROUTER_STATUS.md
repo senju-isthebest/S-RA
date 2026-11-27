@@ -9,7 +9,7 @@
 - Optional Ollama fallback can now be configured at Android build time using `OLLAMA_BASE_URL` and `OLLAMA_MODEL` Gradle properties or environment variables. The endpoint is not a secret and is not hardcoded.
 - Gemini remains primary; Ollama is attempted only after a transient Gemini failure and only when configured.
 - Three plain-text features use the router: Reading Assistant, Equation Solver, and Chapter Comparison/Gap Analysis.
-- Unit tests for fallback, non-fallback failures, and all-provider outage.
+- Unit tests for fallback, timeout, cancellation, non-fallback failures, all-provider outage, endpoint validation, and Ollama HTTP request/response/error handling using MockWebServer.
 - OkHttp dependency enabled for the Ollama adapter.
 
 ## Not integrated yet
@@ -17,7 +17,7 @@
 - Structured generation (book structure, chapter intelligence, question generation, flashcards, teach-back) still uses Firebase AI Logic response schemas.
 - OCR/image generation and tutor streaming still use Firebase AI Logic.
 - Runtime provider settings UI is not implemented; fallback configuration is build-time only.
-- A CI attempt failed during Android SDK setup because the workflow requested the obsolete SDK package `tools`; the workflow configuration was corrected. A successful rerun has not yet been confirmed, so the branch remains unverified to compile.
+- A CI attempt failed during Android SDK setup because the workflow requested the obsolete SDK package `tools`; the workflow configuration was corrected and expanded tests were added. A successful rerun has not yet been confirmed, so the branch remains unverified to compile.
 
 ## Build-time fallback configuration
 - Set `OLLAMA_BASE_URL` to a trusted Ollama endpoint.
