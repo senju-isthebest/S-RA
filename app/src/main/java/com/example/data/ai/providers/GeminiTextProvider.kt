@@ -2,6 +2,7 @@ package com.example.data.ai.providers
 
 import com.google.firebase.Firebase
 import com.google.firebase.ai.ai
+import com.google.firebase.ai.type.generationConfig
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withTimeout
@@ -12,7 +13,15 @@ class GeminiTextProvider(
 ) : AiTextProvider {
     override val providerId: String = "gemini"
 
-    private val model by lazy { Firebase.ai.generativeModel(modelId) }
+    private val textModel by lazy { Firebase.ai.generativeModel(modelId) }
+    private val jsonModel by lazy {
+        Firebase.ai.generativeModel(
+            modelName = modelId,
+            generationConfig = generationConfig {
+                responseMimeType = "application/json"
+            }
+        )
+    }
 
     override suspend fun generate(request: AiTextRequest): AiTextResponse {
         val prompt = buildString {
@@ -23,7 +32,7 @@ class GeminiTextProvider(
         }
         try {
             val result = withTimeout(timeoutMs) {
-                model.generateContent(prompt)
+                (if (request.responseFormat == AiResponseFormat.JSON) jsonModel else textModel).generateContent(prompt)
             }
             val text = result.text?.trim().orEmpty()
             if (text.isBlank()) {
