@@ -311,6 +311,23 @@ service cloud.firestore {
                          incoming().diff(existing()).affectedKeys().hasOnly(['title', 'author', 'subjectId', 'subjectName', 'semester', 'folder', 'storagePath', 'sourceSizeBytes', 'sourceSha256', 'syncStatus', 'cloudPageCount', 'pagesSyncStatus', 'totalPages', 'processedPages', 'currentPage', 'failedPages', 'extractionStatus', 'extractionError', 'overview', 'formulaSheet', 'archived', 'masteryScore', 'bookmarkedPages', 'highlightsJson', 'updatedAt']);
         allow delete: if isOwner(userId) && isValidId(bookId);
 
+        match /pages/{pageId} {
+          allow get: if isOwner(userId) && isValidId(bookId) && pageId.size() == 11 && pageId.matches('p[0-9]+_c[0-9]+');
+          allow list: if isOwner(userId) && isValidId(bookId);
+          allow create, update: if isOwner(userId) && isValidId(bookId) &&
+                        pageId.size() == 11 && pageId.matches('p[0-9]+_c[0-9]+') &&
+                        incoming().keys().hasAll(['pageNumber', 'chunkIndex', 'chunkCount', 'text', 'extractionMethod', 'updatedAt']) &&
+                        incoming().keys().hasOnly(['pageNumber', 'chunkIndex', 'chunkCount', 'text', 'extractionMethod', 'error', 'updatedAt']) &&
+                        incoming().pageNumber is int && incoming().pageNumber >= 1 && incoming().pageNumber <= 5000 &&
+                        incoming().chunkIndex is int && incoming().chunkIndex >= 0 && incoming().chunkIndex <= 999 &&
+                        incoming().chunkCount is int && incoming().chunkCount >= 1 && incoming().chunkCount <= 1000 &&
+                        incoming().chunkIndex < incoming().chunkCount &&
+                        isBoundedString(incoming().text, 0, 9000) &&
+                        isBoundedString(incoming().extractionMethod, 1, 40) &&
+                        (!('error' in incoming()) || isBoundedString(incoming().error, 0, 500)) &&
+                        incoming().updatedAt is timestamp && incoming().updatedAt <= request.time;
+          allow delete: if isOwner(userId) && isValidId(bookId) && pageId.size() == 11 && pageId.matches('p[0-9]+_c[0-9]+');
+        }
         match /chapters/{chapterId} {
           allow get: if isOwner(userId) && isValidId(bookId) && isValidId(chapterId);
           allow list: if isOwner(userId) && isValidId(bookId);
