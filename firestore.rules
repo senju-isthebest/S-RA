@@ -201,6 +201,10 @@ service cloud.firestore {
              data.incorrectCount is int && data.incorrectCount >= 0 && data.incorrectCount <= 200 &&
              data.unansweredCount is int && data.unansweredCount >= 0 && data.unansweredCount <= 200 &&
              data.timeSpentSeconds is int && data.timeSpentSeconds >= 0 && data.timeSpentSeconds <= 36000 &&
+             (!('startedAtMillis' in data) || (data.startedAtMillis is int && data.startedAtMillis >= 0)) &&
+             (!('deadlineAtMillis' in data) || (data.deadlineAtMillis is int && data.deadlineAtMillis >= 0)) &&
+             (!('currentQuestionIndex' in data) || (data.currentQuestionIndex is int && data.currentQuestionIndex >= 0 && data.currentQuestionIndex <= 199)) &&
+             (!('partiallyCorrectCount' in data) || (data.partiallyCorrectCount is int && data.partiallyCorrectCount >= 0 && data.partiallyCorrectCount <= 200)) &&
              (!('analyticsJson' in data) || isBoundedString(data.analyticsJson, 0, 20000)) &&
              (!('recommendedRevision' in data) || isBoundedString(data.recommendedRevision, 0, 3000));
     }
@@ -414,7 +418,7 @@ service cloud.firestore {
         allow list: if isOwner(userId);
         allow create: if isOwner(userId) && isValidId(examId) &&
                          incoming().keys().hasAll(['title', 'preset', 'bookIds', 'questionIds', 'durationMinutes', 'totalMarks', 'allowRevisit', 'showExplanationEach', 'status', 'score', 'percentage', 'correctCount', 'incorrectCount', 'unansweredCount', 'timeSpentSeconds', 'createdAt', 'updatedAt']) &&
-                         incoming().keys().hasOnly(['title', 'preset', 'bookIds', 'questionIds', 'durationMinutes', 'totalMarks', 'allowRevisit', 'showExplanationEach', 'status', 'answersJson', 'flaggedQuestionIds', 'score', 'percentage', 'correctCount', 'incorrectCount', 'unansweredCount', 'timeSpentSeconds', 'analyticsJson', 'recommendedRevision', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['title', 'preset', 'bookIds', 'questionIds', 'durationMinutes', 'totalMarks', 'allowRevisit', 'showExplanationEach', 'status', 'answersJson', 'flaggedQuestionIds', 'score', 'percentage', 'correctCount', 'incorrectCount', 'unansweredCount', 'timeSpentSeconds', 'startedAtMillis', 'deadlineAtMillis', 'currentQuestionIndex', 'partiallyCorrectCount', 'analyticsJson', 'recommendedRevision', 'createdAt', 'updatedAt']) &&
                          incoming().createdAt is timestamp && incoming().createdAt <= request.time &&
                          incoming().updatedAt is timestamp && incoming().updatedAt <= request.time &&
                          isValidExamRecord(incoming());
@@ -423,7 +427,7 @@ service cloud.firestore {
                          isValidExamRecord(incoming()) &&
                          incoming().createdAt == existing().createdAt &&
                          incoming().updatedAt is timestamp && incoming().updatedAt <= request.time &&
-                         incoming().diff(existing()).affectedKeys().hasOnly(['status', 'answersJson', 'flaggedQuestionIds', 'score', 'percentage', 'correctCount', 'incorrectCount', 'unansweredCount', 'timeSpentSeconds', 'analyticsJson', 'recommendedRevision', 'updatedAt']);
+                         incoming().diff(existing()).affectedKeys().hasOnly(['status', 'answersJson', 'flaggedQuestionIds', 'score', 'percentage', 'correctCount', 'incorrectCount', 'unansweredCount', 'timeSpentSeconds', 'startedAtMillis', 'deadlineAtMillis', 'currentQuestionIndex', 'partiallyCorrectCount', 'analyticsJson', 'recommendedRevision', 'updatedAt']);
         allow delete: if isOwner(userId) && isValidId(examId);
       }
 
