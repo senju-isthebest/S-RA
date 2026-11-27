@@ -1,5 +1,6 @@
 package com.example.ui
 
+import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -14,6 +15,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
+import androidx.core.content.FileProvider
 import androidx.credentials.CredentialManager
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -25,6 +27,7 @@ import com.example.core.UserPreferences
 import com.example.core.authStateFlow
 import com.example.core.signOut
 import com.example.data.ai.SoraAiService
+import com.example.data.export.AccountDataExporter
 import com.example.data.local.DocumentProcessor
 import com.example.data.model.ExamPreset
 import com.example.data.repository.SoraRepository
@@ -35,6 +38,7 @@ import com.example.ui.theme.SoraThemeMode
 import com.google.firebase.Firebase
 import com.google.firebase.auth.auth
 import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.launch
 
 private data class SoraNavTab(
     val label: String,
@@ -92,14 +96,20 @@ private fun SoraAuthenticatedContent(
     val appContext = context.applicationContext
     val scope = rememberCoroutineScope()
     val credentialManager = remember { CredentialManager.create(context) }
+    val firestore = remember(appContext) {
+        FirebaseFirestore.getInstance(appContext.getString(R.string.firestore_database_id))
+    }
+    val accountDataExporter = remember(firestore, appContext) {
+        AccountDataExporter(appContext, firestore)
+    }
+    var isExportingAccountData by remember { mutableStateOf(false) }
 
     val viewModel: SoraViewModel = viewModel(
         key = uid,
         factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                val db = FirebaseFirestore.getInstance(appContext.getString(R.string.firestore_database_id))
-                val repository = SoraRepository(db, Firebase.auth)
+                val repository = SoraRepository(firestore, Firebase.auth)
                 val aiService = SoraAiService()
                 val processor = DocumentProcessor(appContext, aiService)
                 return SoraViewModel(repository, aiService, processor, userPreferences, uid) as T
@@ -314,6 +324,38 @@ private fun SoraAuthenticatedContent(
                                     },
                                     onSignOut = {
                                         signOut(credentialManager = credentialManager, scope = scope)
+                                    },
+                                    isExportingAccountData = isExportingAccountData,
+                                    onExportAccountData = {
+                                        if (!isExportingAccountData) {
+                                            isExportingAccountData = true
+                                            scope.launch {
+                                                try {
+                                                    accountDataExporter.exportToCache()
+                                                        .onSuccess { file ->
+                                                            viewModel.showBanner("Export includes Firestore study data and extracted pages; original uploaded files are not bundled.")
+                                                            val uri = FileProvider.getUriForFile(
+                                                                appContext,
+                                                                "${appContext.packageName}.fileprovider",
+                                                                file
+                                                            )
+                                                            val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                                                type = "application/json"
+                                                                putExtra(Intent.EXTRA_STREAM, uri)
+                                                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                                            }
+                                                            context.startActivity(
+                                                                Intent.createChooser(shareIntent, "Export SŌRA account data")
+                                                            )
+                                                        }
+                                                        .onFailure { error ->
+                                                            viewModel.showBanner(error.localizedMessage ?: "Account data export failed.")
+                                                        }
+                                                } finally {
+                                                    isExportingAccountData = false
+                                                }
+                                            }
+                                        }
                                     },
                                     onUploadBookClick = { showUploadDialog = true },
                                     onOpenBook = { viewModel.openBookWorkspace(it) },

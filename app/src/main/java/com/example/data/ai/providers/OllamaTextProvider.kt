@@ -88,6 +88,18 @@ class OllamaTextProvider(
             executePayload(buildPayload(request).put("images", JSONArray().put(encodedImage)))
         }
 
+    /**
+     * Pure byte-array entry point for image requests. This keeps HTTP payload tests independent
+     * of Robolectric and makes the exact bytes sent to the configured endpoint testable.
+     */
+    suspend fun generateFromImageBase64(encodedImage: String, request: AiTextRequest): AiTextResponse =
+        withContext(Dispatchers.IO) {
+            if (encodedImage.isBlank() || encodedImage.any { it.isWhitespace() }) {
+                throw AiProviderException(AiFailureKind.INVALID_REQUEST, "Encoded image data is empty or malformed.")
+            }
+            executePayload(buildPayload(request).put("images", JSONArray().put(encodedImage)))
+        }
+
     private fun buildPayload(request: AiTextRequest): JSONObject {
         val prompt = buildString {
             request.systemInstruction?.takeIf { it.isNotBlank() }?.let {

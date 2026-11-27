@@ -48,6 +48,8 @@ fun HomeDashboardScreen(
     themeMode: SoraThemeMode,
     onCycleTheme: () -> Unit,
     onSignOut: () -> Unit,
+    isExportingAccountData: Boolean,
+    onExportAccountData: () -> Unit,
     onUploadBookClick: () -> Unit,
     onOpenBook: (Book) -> Unit,
     onNavigateTab: (Int) -> Unit,
@@ -167,6 +169,21 @@ fun HomeDashboardScreen(
                                 modifier = Modifier.testTag("customize_dashboard_button")
                             ) {
                                 Icon(Icons.Rounded.Tune, contentDescription = "Customize dashboard", tint = Color.White)
+                            }
+                            IconButton(
+                                onClick = onExportAccountData,
+                                enabled = !isExportingAccountData,
+                                modifier = Modifier.testTag("export_account_data_button")
+                            ) {
+                                if (isExportingAccountData) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(20.dp),
+                                        color = Color.White,
+                                        strokeWidth = 2.dp
+                                    )
+                                } else {
+                                    Icon(Icons.Rounded.FileDownload, contentDescription = "Export account data", tint = Color.White)
+                                }
                             }
                             IconButton(
                                 onClick = onSignOut,

@@ -11,6 +11,7 @@ on:
       - feature/cloud-book-sync
       - feature/full-book-intelligence
       - feature/exam-engine
+      - feature/security-accounts
   workflow_dispatch:
 
 jobs:
@@ -113,6 +114,9 @@ jobs:
             fi
           done
           exit 1
+
+      - name: Verify repository and debug APK contain no private credentials
+        run: bash scripts/verify-no-secrets.sh
 
   rules-test:
     runs-on: ubuntu-latest
