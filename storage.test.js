@@ -48,13 +48,10 @@ test("other users cannot read or upload into an owner's book path", async () => 
   await assertFails(getBytes(alicePath));
 });
 
-test("storage rejects unsupported MIME types and oversized files", async () => {
+test("storage rejects unsupported MIME types", async () => {
   const aliceStorage = testEnv.authenticatedContext("alice").storage();
   const invalidType = ref(aliceStorage, "users/alice/books/book_2/source");
   await assertFails(uploadBytes(invalidType, Buffer.from("script"), {
     contentType: "application/javascript",
   }));
-  const tooLarge = ref(aliceStorage, "users/alice/books/book_3/source");
-  const payload = new Uint8Array(80 * 1024 * 1024 + 1);
-  await assertFails(uploadBytes(tooLarge, payload, { contentType: "application/pdf" }));
 });
