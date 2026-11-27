@@ -15,6 +15,8 @@ service firebase.storage {
       allow create, update: if signedInAs(uid) &&
         validBookId(bookId) &&
         request.resource.size <= 80 * 1024 * 1024 &&
+        request.resource.metadata.ownerUid == uid &&
+        request.resource.metadata.bookId == bookId &&
         request.resource.contentType in [
           'application/pdf',
           'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
