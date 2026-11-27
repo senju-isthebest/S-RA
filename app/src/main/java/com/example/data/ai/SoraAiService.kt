@@ -2,6 +2,7 @@ package com.example.data.ai
 
 import android.graphics.Bitmap
 import android.util.Log
+import com.example.BuildConfig
 import com.example.data.model.BookPageContent
 import com.example.data.model.Chapter
 import com.example.data.model.Flashcard
@@ -14,6 +15,7 @@ import com.google.firebase.ai.ai
 import com.example.data.ai.providers.AiProviderRouter
 import com.example.data.ai.providers.AiTextRequest
 import com.example.data.ai.providers.GeminiTextProvider
+import com.example.data.ai.providers.OllamaTextProvider
 import com.google.firebase.ai.type.Schema
 import com.google.firebase.ai.type.content
 import com.google.firebase.ai.type.generationConfig
@@ -45,7 +47,10 @@ data class TeachBackFeedback(
     val coachingFeedback: String
 )
 
-class SoraAiService {
+class SoraAiService(
+    private val ollamaBaseUrl: String = BuildConfig.OLLAMA_BASE_URL,
+    private val ollamaModel: String = BuildConfig.OLLAMA_MODEL
+) {
 
     private val generalModel by lazy {
         Firebase.ai.generativeModel("gemini-3.8-flash")
@@ -54,7 +59,20 @@ class SoraAiService {
     // Text-only requests go through the provider abstraction. Structured and image requests
     // remain on their existing Firebase AI Logic paths until compatible adapters are added.
     private val textRouter by lazy {
-        AiProviderRouter(listOf(GeminiTextProvider()))
+        val configuredProviders = mutableListOf<com.example.data.ai.providers.AiTextProvider>(
+            GeminiTextProvider()
+        )
+        if (ollamaBaseUrl.isNotBlank()) {
+            runCatching {
+                configuredProviders += OllamaTextProvider(
+                    modelId = ollamaModel,
+                    baseUrl = ollamaBaseUrl
+                )
+            }.onFailure { error ->
+                Log.w(TAG, "Ignoring invalid Ollama fallback configuration.", error)
+            }
+        }
+        AiProviderRouter(configuredProviders)
     }
 
     private val structureSchema = Schema.obj(
