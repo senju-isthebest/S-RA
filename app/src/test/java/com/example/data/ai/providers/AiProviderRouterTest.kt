@@ -197,8 +197,16 @@ class AiProviderRouterTest {
         OllamaTextProvider(modelId = "model", baseUrl = "http://192.168.1.10:11434")
         OllamaTextProvider(modelId = "model", baseUrl = "http://127.0.0.1:11434")
         OllamaTextProvider(modelId = "model", baseUrl = "http://172.20.0.4:11434")
+        OllamaTextProvider(modelId = "model", baseUrl = "http://172.31.255.254:11434")
         OllamaTextProvider(modelId = "model", baseUrl = "http://[::1]:11434")
         OllamaTextProvider(modelId = "model", baseUrl = "http://[fc00::1]:11434")
+    }
+
+    @Test
+    fun rejectsAddressOutsidePrivate172Range() {
+        assertThrows(IllegalArgumentException::class.java) {
+            OllamaTextProvider(modelId = "model", baseUrl = "http://172.32.0.4:11434")
+        }
     }
 
     @Test
