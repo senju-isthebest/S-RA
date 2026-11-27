@@ -408,6 +408,16 @@ class SoraViewModel(
         return fileSynced && pagesSynced
     }
 
+    fun retryCloudSync(book: Book) {
+        viewModelScope.launch {
+            _ingestionProgress.value = IngestionProgressState(true, 0, 1, "Retrying cloud sync...")
+            val pages = documentProcessor.loadPages(book.localBookId)
+            val ok = syncImportedBook(book.id, book.fileName, pages)
+            _ingestionProgress.value = IngestionProgressState(false)
+            _bannerMessage.value = if (ok) "Cloud sync completed." else "Cloud sync is still unavailable. Your local copy is safe."
+        }
+    }
+
     fun retryFailedPages(book: Book) {
         if (book.failedPages.isEmpty()) return
         viewModelScope.launch {
