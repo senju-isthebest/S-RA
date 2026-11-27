@@ -19,7 +19,12 @@ plugins {
   val ollamaVisionModel = providers.gradleProperty("OLLAMA_VISION_MODEL")
     .orElse(providers.environmentVariable("OLLAMA_VISION_MODEL"))
     .getOrElse("")
-  fun buildConfigString(value: String) = "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
+  fun buildConfigString(value: String) = "\"" + value
+    .replace("\\", "\\\\")
+    .replace("\"", "\\\"")
+    .replace("\n", "\\n")
+    .replace("\r", "\\r")
+    .replace("\t", "\\t") + "\""
 
 android {
   namespace = "com.example"
