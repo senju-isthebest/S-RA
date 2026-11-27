@@ -19,6 +19,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.data.export.ExportManager
+import com.example.data.exam.ExamEngine
 import com.example.data.model.*
 import com.example.ui.SoraViewModel
 import com.example.ui.components.*
@@ -28,6 +29,18 @@ import com.example.ui.theme.SoraViolet
 import com.example.ui.theme.SoraWarning
 import kotlinx.coroutines.delay
 import org.json.JSONObject
+
+
+private fun parseExamAnswers(raw: String): MutableMap<String, String> {
+    val json = try { JSONObject(raw.ifBlank { "{}" }) } catch (_: Exception) { JSONObject() }
+    val result = mutableMapOf<String, String>()
+    val keys = json.keys()
+    while (keys.hasNext()) {
+        val key = keys.next()
+        result[key] = json.optString(key, "")
+    }
+    return result
+}
 
 @Composable
 fun ExamsPracticeScreen(
@@ -270,7 +283,7 @@ private fun ExamBuilderAndHistoryTab(
                             Text(rec.title, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             Text(
                                 if (rec.status == "SUBMITTED") {
-                                    "${rec.score}/${rec.totalMarks} pts • ${rec.correctCount} correct • ${rec.incorrectCount} missed"
+                                    "${rec.score}/${rec.totalMarks} pts • ${rec.correctCount} correct • ${rec.partiallyCorrectCount} partial • ${rec.incorrectCount} missed"
                                 } else {
                                     "In progress • ${rec.questionIds.size} questions"
                                 },
@@ -355,8 +368,6 @@ fun ExamSessionScreen(
     viewModel: SoraViewModel,
     onClose: () -> Unit
 ) {
-    BackHandler(onBack = onClose)
-
     val context = LocalContext.current
     val exportManager = remember { ExportManager(context) }
 
@@ -372,7 +383,7 @@ fun ExamSessionScreen(
             onExportPdf = {
                 val body = buildString {
                     append("Score: ${exam.score}/${exam.totalMarks} (${exam.percentage.toInt()}%)\n")
-                    append("Correct: ${exam.correctCount} | Incorrect: ${exam.incorrectCount} | Unanswered: ${exam.unansweredCount}\n\n")
+                    append("Correct: ${exam.correctCount} | Partial: ${exam.partiallyCorrectCount} | Incorrect: ${exam.incorrectCount} | Unanswered: ${exam.unansweredCount}\n\n")
                     append("Recommendation: ${exam.recommendedRevision}\n\n")
                     val ansObj = try { JSONObject(exam.answersJson) } catch (_: Exception) { JSONObject() }
                     examQuestions.forEachIndexed { idx, q ->
@@ -392,22 +403,51 @@ fun ExamSessionScreen(
         return
     }
 
-    var currentIdx by remember { mutableIntStateOf(0) }
-    var answersMap by remember(exam.id) { mutableStateOf(mutableMapOf<String, String>()) }
+    val clockStartMillis = remember(exam.id, exam.startedAtMillis, exam.createdAt) {
+        exam.startedAtMillis.takeIf { it > 0L }
+            ?: exam.createdAt?.toDate()?.time
+            ?: System.currentTimeMillis()
+    }
+    val clockDeadlineMillis = remember(exam.id, exam.deadlineAtMillis, exam.durationMinutes, clockStartMillis) {
+        exam.deadlineAtMillis.takeIf { it > 0L }
+            ?: clockStartMillis + exam.durationMinutes.coerceIn(1L, 300L) * 60_000L
+    }
+    var currentIdx by remember(exam.id) {
+        mutableIntStateOf(exam.currentQuestionIndex.toInt().coerceAtLeast(0))
+    }
+    var answersMap by remember(exam.id) { mutableStateOf(parseExamAnswers(exam.answersJson)) }
     var flaggedIds by remember(exam.id) { mutableStateOf(exam.flaggedQuestionIds.toSet()) }
-    var remainingSeconds by remember(exam.id) { mutableIntStateOf((exam.durationMinutes * 60L).toInt().coerceAtLeast(60)) }
-    var elapsedSeconds by remember(exam.id) { mutableIntStateOf(0) }
+    var remainingSeconds by remember(exam.id, clockDeadlineMillis) {
+        mutableIntStateOf(ExamEngine.remainingSeconds(clockDeadlineMillis, System.currentTimeMillis()))
+    }
+    var elapsedSeconds by remember(exam.id, clockStartMillis) {
+        mutableIntStateOf(((System.currentTimeMillis() - clockStartMillis).coerceAtLeast(0L) / 1000L).coerceAtMost(36000L).toInt())
+    }
     var showConfirmSubmit by remember { mutableStateOf(false) }
 
-    LaunchedEffect(exam.id) {
+    BackHandler(onBack = {
+        viewModel.saveExamProgress(exam, answersMap, flaggedIds, currentIdx, elapsedSeconds)
+        onClose()
+    })
+
+    LaunchedEffect(exam.id, exam.deadlineAtMillis, exam.status) {
+        if (exam.status == "SUBMITTED") return@LaunchedEffect
+        viewModel.ensureExamClock(exam)
         while (remainingSeconds > 0) {
             delay(1000L)
-            remainingSeconds--
-            elapsedSeconds++
+            val now = System.currentTimeMillis()
+            remainingSeconds = ExamEngine.remainingSeconds(clockDeadlineMillis, now)
+            elapsedSeconds = ((now - clockStartMillis).coerceAtLeast(0L) / 1000L).coerceAtMost(36000L).toInt()
         }
         if (examQuestions.isNotEmpty()) {
             viewModel.submitExam(exam, examQuestions, answersMap, flaggedIds, elapsedSeconds)
         }
+    }
+
+    LaunchedEffect(exam.id, answersMap, flaggedIds, currentIdx) {
+        if (exam.status == "SUBMITTED") return@LaunchedEffect
+        delay(600L)
+        viewModel.saveExamProgress(exam, answersMap, flaggedIds, currentIdx, elapsedSeconds)
     }
 
     Scaffold(
@@ -426,7 +466,10 @@ fun ExamSessionScreen(
                     }
                 },
                 navigationIcon = {
-                    IconButton(onClick = onClose) {
+                    IconButton(onClick = {
+                        viewModel.saveExamProgress(exam, answersMap, flaggedIds, currentIdx, elapsedSeconds)
+                        onClose()
+                    }) {
                         Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Exit exam")
                     }
                 },
@@ -580,6 +623,7 @@ fun ExamSessionScreen(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
+
 private fun ExamResultsScreen(
     exam: ExamRecord,
     examQuestions: List<QuestionItem>,
@@ -631,7 +675,7 @@ private fun ExamResultsScreen(
                         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Text(exam.title, style = MaterialTheme.typography.titleMedium)
                             Text("Score: ${exam.score}/${exam.totalMarks} pts (${exam.percentage.toInt()}%)", style = MaterialTheme.typography.bodyMedium)
-                            Text("Correct: ${exam.correctCount} • Missed: ${exam.incorrectCount} • Blank: ${exam.unansweredCount} • ${exam.timeSpentSeconds / 60}m ${exam.timeSpentSeconds % 60}s", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("Correct: ${exam.correctCount} • Partial: ${exam.partiallyCorrectCount} • Missed: ${exam.incorrectCount} • Blank: ${exam.unansweredCount} • ${exam.timeSpentSeconds / 60}m ${exam.timeSpentSeconds % 60}s", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                     if (exam.recommendedRevision.isNotBlank()) {
@@ -655,7 +699,8 @@ private fun ExamResultsScreen(
 
             itemsIndexed(examQuestions) { idx, q ->
                 val userAns = ansJson.optString(q.id, "")
-                val isCorrect = userAns.equals(q.correctAnswer, ignoreCase = true)
+                val grade = ExamEngine.grade(q, userAns)
+                val isCorrect = grade.isFullyCorrect
                 SoraSurfaceCard(
                     accentBorder = if (isCorrect) SoraSuccess else MaterialTheme.colorScheme.error,
                     modifier = Modifier.fillMaxWidth()
@@ -668,6 +713,12 @@ private fun ExamResultsScreen(
                             color = if (isCorrect) SoraSuccess else MaterialTheme.colorScheme.error
                         )
                         Text("Correct Answer: ${q.correctAnswer}", style = MaterialTheme.typography.bodySmall, color = SoraSuccess)
+                        Text(
+                            "Marks awarded: ${grade.earnedMarks}/${grade.maximumMarks}" +
+                                if (grade.isPartiallyCorrect) " • Partial credit" else "",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (grade.isFullyCorrect) SoraSuccess else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                         if (q.explanation.isNotBlank()) {
                             Text("Explanation (Ch.${q.chapterNumber}, p.${q.sourcePage}): ${q.explanation}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }

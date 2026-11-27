@@ -447,8 +447,22 @@ test("Exams enforce terminal SUBMITTED state lock", async () => {
       incorrectCount: 0,
       unansweredCount: 1,
       timeSpentSeconds: 0,
+      startedAtMillis: Date.now(),
+      deadlineAtMillis: Date.now() + 900000,
+      currentQuestionIndex: 0,
+      partiallyCorrectCount: 0,
       createdAt: now,
       updatedAt: now,
+    })
+  );
+
+  // Resume/autosave is allowed while the exam is still in progress.
+  await assertSucceeds(
+    examRef.update({
+      answersJson: JSON.stringify({ q_1: "B" }),
+      currentQuestionIndex: 0,
+      timeSpentSeconds: 15,
+      updatedAt: new Date(Date.now() - 2000),
     })
   );
 
@@ -460,6 +474,7 @@ test("Exams enforce terminal SUBMITTED state lock", async () => {
       percentage: 100.0,
       correctCount: 1,
       incorrectCount: 0,
+      partiallyCorrectCount: 0,
       unansweredCount: 0,
       timeSpentSeconds: 120,
       updatedAt: new Date(Date.now() - 1000),
