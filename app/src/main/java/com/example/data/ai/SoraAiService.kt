@@ -10,6 +10,10 @@ import com.example.data.model.QuestionItem
 import com.example.data.model.TutorMode
 import com.google.firebase.Firebase
 import com.google.firebase.ai.ai
+
+import com.example.data.ai.providers.AiProviderRouter
+import com.example.data.ai.providers.AiTextRequest
+import com.example.data.ai.providers.GeminiTextProvider
 import com.google.firebase.ai.type.Schema
 import com.google.firebase.ai.type.content
 import com.google.firebase.ai.type.generationConfig
@@ -45,6 +49,12 @@ class SoraAiService {
 
     private val generalModel by lazy {
         Firebase.ai.generativeModel("gemini-3.8-flash")
+    }
+
+    // Text-only requests go through the provider abstraction. Structured and image requests
+    // remain on their existing Firebase AI Logic paths until compatible adapters are added.
+    private val textRouter by lazy {
+        AiProviderRouter(listOf(GeminiTextProvider()))
     }
 
     private val structureSchema = Schema.obj(
@@ -623,10 +633,9 @@ class SoraAiService {
                 Perform action: $action (e.g., Simplify, Explain, Key Definitions, Worked Examples, Translate to Spanish/Arabic/French if requested, Practice Questions, or Concise Summary).
                 Keep textbook terminology intact and clearly separate textbook facts from supplementary explanation.
             """.trimIndent()
-            val response = withTimeout(AI_TIMEOUT_MS) {
-                generalModel.generateContent(prompt)
+            val out = withTimeout(AI_TIMEOUT_MS) {
+                textRouter.generate(AiTextRequest(prompt = prompt, taskTag = "reading_assistant")).text.trim()
             }
-            val out = response.text?.trim().orEmpty()
             if (out.isBlank()) Result.failure(IllegalStateException("Empty assistant response."))
             else Result.success(out)
         } catch (e: TimeoutCancellationException) {
@@ -682,10 +691,9 @@ class SoraAiService {
                 Solve the following academic/mathematical/scientific equation or word problem with clear step-by-step reasoning, showing intermediate steps, units, and verification of the final answer:
                 $equationInput
             """.trimIndent()
-            val response = withTimeout(AI_TIMEOUT_MS) {
-                generalModel.generateContent(prompt)
+            val text = withTimeout(AI_TIMEOUT_MS) {
+                textRouter.generate(AiTextRequest(prompt = prompt, taskTag = "equation_solver")).text.trim()
             }
-            val text = response.text?.trim().orEmpty()
             if (text.isBlank()) Result.failure(IllegalStateException("Empty solution returned."))
             else Result.success(text)
         } catch (e: TimeoutCancellationException) {
