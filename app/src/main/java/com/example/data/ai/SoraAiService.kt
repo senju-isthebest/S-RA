@@ -50,7 +50,8 @@ data class TeachBackFeedback(
 
 class SoraAiService(
     private val ollamaBaseUrl: String = BuildConfig.OLLAMA_BASE_URL,
-    private val ollamaModel: String = BuildConfig.OLLAMA_MODEL
+    private val ollamaModel: String = BuildConfig.OLLAMA_MODEL,
+    private val ollamaVisionModel: String = BuildConfig.OLLAMA_VISION_MODEL
 ) {
 
     private val generalModel by lazy {
@@ -380,7 +381,10 @@ class SoraAiService(
     ): Result<String> {
         return try {
             Log.w(TAG, "$taskTag primary provider failed; trying configured Ollama vision fallback.")
-            val provider = OllamaTextProvider(modelId = ollamaModel, baseUrl = ollamaBaseUrl)
+            if (ollamaVisionModel.isBlank()) {
+                return Result.failure(IllegalStateException("No Ollama vision model is configured for OCR fallback."))
+            }
+            val provider = OllamaTextProvider(modelId = ollamaVisionModel, baseUrl = ollamaBaseUrl)
             val response = withTimeout(110_000L) {
                 provider.generateFromImage(bitmap, AiTextRequest(prompt = prompt, taskTag = taskTag))
             }
