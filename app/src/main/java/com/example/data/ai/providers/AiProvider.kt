@@ -1,11 +1,14 @@
 package com.example.data.ai.providers
 
+enum class AiResponseFormat { TEXT, JSON }
+
 data class AiTextRequest(
     val prompt: String,
     val systemInstruction: String? = null,
     val temperature: Float = 0.4f,
     val maxTokens: Int? = null,
-    val taskTag: String = "general"
+    val taskTag: String = "general",
+    val responseFormat: AiResponseFormat = AiResponseFormat.TEXT
 )
 
 data class AiTextResponse(
