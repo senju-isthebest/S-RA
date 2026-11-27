@@ -1,7 +1,7 @@
 package com.example.data.ai.providers
 
 import android.graphics.Bitmap
-import java.util.Base64
+import android.util.Base64
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -84,7 +84,7 @@ class OllamaTextProvider(
             if (!bitmap.compress(Bitmap.CompressFormat.JPEG, 85, imageStream)) {
                 throw AiProviderException(AiFailureKind.INVALID_REQUEST, "Could not encode image for Ollama.")
             }
-            val encodedImage = Base64.getEncoder().encodeToString(imageStream.toByteArray())
+            val encodedImage = Base64.encodeToString(imageStream.toByteArray(), Base64.NO_WRAP)
             executePayload(buildPayload(request).put("images", JSONArray().put(encodedImage)))
         }
 
@@ -92,12 +92,11 @@ class OllamaTextProvider(
      * Pure byte-array entry point for image requests. This keeps HTTP payload tests independent
      * of Robolectric and makes the exact bytes sent to the configured endpoint testable.
      */
-    suspend fun generateFromImageBytes(imageBytes: ByteArray, request: AiTextRequest): AiTextResponse =
+    suspend fun generateFromImageBase64(encodedImage: String, request: AiTextRequest): AiTextResponse =
         withContext(Dispatchers.IO) {
-            if (imageBytes.isEmpty()) {
-                throw AiProviderException(AiFailureKind.INVALID_REQUEST, "Image data is empty.")
+            if (encodedImage.isBlank() || encodedImage.any { it.isWhitespace() }) {
+                throw AiProviderException(AiFailureKind.INVALID_REQUEST, "Encoded image data is empty or malformed.")
             }
-            val encodedImage = Base64.getEncoder().encodeToString(imageBytes)
             executePayload(buildPayload(request).put("images", JSONArray().put(encodedImage)))
         }
 
