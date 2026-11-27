@@ -57,8 +57,8 @@ class SoraAiService(
         Firebase.ai.generativeModel("gemini-3.8-flash")
     }
 
-    // Text-only requests go through the provider abstraction. Structured and image requests
-    // remain on their existing Firebase AI Logic paths until compatible adapters are added.
+    // Text and structured requests use Gemini first; text-only and structured JSON can fall back
+    // to a configured Ollama endpoint. Image OCR and image-based tutor requests remain Gemini-only.
     private val textRouter by lazy {
         val configuredProviders = mutableListOf<com.example.data.ai.providers.AiTextProvider>(
             GeminiTextProvider()
@@ -115,6 +115,14 @@ class SoraAiService(
                     responseFormat = com.example.data.ai.providers.AiResponseFormat.JSON
                 )
             ).text
+        }
+    }
+
+    private suspend fun generateOllamaTextFallback(prompt: String, taskTag: String): String {
+        if (ollamaBaseUrl.isBlank()) error("No Ollama fallback endpoint is configured.")
+        val provider = OllamaTextProvider(modelId = ollamaModel, baseUrl = ollamaBaseUrl)
+        return withTimeout(110_000L) {
+            provider.generate(AiTextRequest(prompt = prompt, taskTag = taskTag)).text
         }
     }
 
@@ -671,24 +679,42 @@ class SoraAiService(
         }
 
         val accumulated = StringBuilder()
-        withTimeout(AI_TIMEOUT_MS) {
-            val stream = if (pageBitmap != null) {
-                generalModel.generateContentStream(
-                    content {
-                        image(pageBitmap)
-                        text(conversationText)
+        try {
+            withTimeout(AI_TIMEOUT_MS) {
+                val stream = if (pageBitmap != null) {
+                    generalModel.generateContentStream(
+                        content {
+                            image(pageBitmap)
+                            text(conversationText)
+                        }
+                    )
+                } else {
+                    generalModel.generateContentStream(conversationText)
+                }
+                stream.collect { chunk ->
+                    val piece = chunk.text.orEmpty()
+                    if (piece.isNotEmpty()) {
+                        accumulated.append(piece)
+                        emit(accumulated.toString())
                     }
-                )
-            } else {
-                generalModel.generateContentStream(conversationText)
-            }
-            stream.collect { chunk ->
-                val piece = chunk.text.orEmpty()
-                if (piece.isNotEmpty()) {
-                    accumulated.append(piece)
-                    emit(accumulated.toString())
                 }
             }
+        } catch (timeout: TimeoutCancellationException) {
+            if (pageBitmap != null || accumulated.isNotEmpty() || ollamaBaseUrl.isBlank()) throw timeout
+            Log.w(TAG, "Tutor stream timed out; trying configured Ollama text fallback.")
+            val fallback = generateOllamaTextFallback(conversationText, "tutor")
+            accumulated.append(fallback)
+            emit(accumulated.toString())
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (failure: Exception) {
+            if (pageBitmap != null || accumulated.isNotEmpty() || ollamaBaseUrl.isBlank() || !isTransientAiFailure(failure)) {
+                throw failure
+            }
+            Log.w(TAG, "Tutor stream failed transiently; trying configured Ollama text fallback.")
+            val fallback = generateOllamaTextFallback(conversationText, "tutor")
+            accumulated.append(fallback)
+            emit(accumulated.toString())
         }
     }
 
