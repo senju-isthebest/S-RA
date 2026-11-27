@@ -31,6 +31,7 @@ test("signed-in owner can upload and download a supported textbook file", async 
   const fileRef = ref(storage, "users/alice/books/book_1/source");
   await assertSucceeds(uploadBytes(fileRef, Buffer.from("sample pdf bytes"), {
     contentType: "application/pdf",
+    customMetadata: { ownerUid: "alice", bookId: "book_1" },
   }));
   const bytes = await assertSucceeds(getBytes(fileRef));
   if (Buffer.from(bytes).toString() !== "sample pdf bytes") {
@@ -44,8 +45,24 @@ test("other users cannot read or upload into an owner's book path", async () => 
   const alicePath = ref(bobStorage, "users/alice/books/book_1/source");
   await assertFails(uploadBytes(alicePath, Buffer.from("steal"), {
     contentType: "application/pdf",
+    customMetadata: { ownerUid: "bob", bookId: "book_1" },
   }));
   await assertFails(getBytes(alicePath));
+});
+
+test("storage rejects mismatched owner and book metadata", async () => {
+  const aliceStorage = testEnv.authenticatedContext("alice").storage();
+  const wrongOwner = ref(aliceStorage, "users/alice/books/book_2/source");
+  await assertFails(uploadBytes(wrongOwner, Buffer.from("wrong owner metadata"), {
+    contentType: "application/pdf",
+    customMetadata: { ownerUid: "bob", bookId: "book_2" },
+  }));
+
+  const wrongBook = ref(aliceStorage, "users/alice/books/book_3/source");
+  await assertFails(uploadBytes(wrongBook, Buffer.from("wrong book metadata"), {
+    contentType: "application/pdf",
+    customMetadata: { ownerUid: "alice", bookId: "another_book" },
+  }));
 });
 
 test("storage rejects unsupported MIME types", async () => {
@@ -53,5 +70,6 @@ test("storage rejects unsupported MIME types", async () => {
   const invalidType = ref(aliceStorage, "users/alice/books/book_2/source");
   await assertFails(uploadBytes(invalidType, Buffer.from("script"), {
     contentType: "application/javascript",
+    customMetadata: { ownerUid: "alice", bookId: "book_2" },
   }));
 });
