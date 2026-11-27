@@ -2,6 +2,7 @@ package com.example.data.ai
 
 import android.graphics.Bitmap
 import android.util.Log
+import com.example.BuildConfig
 import com.example.data.model.BookPageContent
 import com.example.data.model.Chapter
 import com.example.data.model.Flashcard
@@ -10,6 +11,11 @@ import com.example.data.model.QuestionItem
 import com.example.data.model.TutorMode
 import com.google.firebase.Firebase
 import com.google.firebase.ai.ai
+
+import com.example.data.ai.providers.AiProviderRouter
+import com.example.data.ai.providers.AiTextRequest
+import com.example.data.ai.providers.GeminiTextProvider
+import com.example.data.ai.providers.OllamaTextProvider
 import com.google.firebase.ai.type.Schema
 import com.google.firebase.ai.type.content
 import com.google.firebase.ai.type.generationConfig
@@ -23,6 +29,7 @@ import org.json.JSONObject
 
 private const val TAG = "SoraAiService"
 private const val AI_TIMEOUT_MS = 60_000L
+private const val TEXT_ROUTER_TIMEOUT_MS = 170_000L
 
 data class DetectedBookStructure(
     val title: String,
@@ -41,10 +48,129 @@ data class TeachBackFeedback(
     val coachingFeedback: String
 )
 
-class SoraAiService {
+class SoraAiService(
+    private val ollamaBaseUrl: String = BuildConfig.OLLAMA_BASE_URL,
+    private val ollamaModel: String = BuildConfig.OLLAMA_MODEL,
+    private val ollamaVisionModel: String = BuildConfig.OLLAMA_VISION_MODEL
+) {
 
     private val generalModel by lazy {
         Firebase.ai.generativeModel("gemini-3.8-flash")
+    }
+
+    // Text and structured requests use Gemini first; text-only and structured JSON can fall back
+    // to a configured Ollama endpoint. Image OCR and image-based tutor requests remain Gemini-only.
+    private val textRouter by lazy {
+        val configuredProviders = mutableListOf<com.example.data.ai.providers.AiTextProvider>(
+            GeminiTextProvider()
+        )
+        if (ollamaBaseUrl.isNotBlank()) {
+            runCatching {
+                configuredProviders += OllamaTextProvider(
+                    modelId = ollamaModel,
+                    baseUrl = ollamaBaseUrl
+                )
+            }.onFailure { error ->
+                Log.w(TAG, "Ignoring invalid Ollama fallback configuration.", error)
+            }
+        }
+        AiProviderRouter(configuredProviders)
+    }
+
+    private suspend fun generateStructuredTextWithFallback(
+        prompt: String,
+        taskTag: String,
+        primaryCall: suspend () -> String
+    ): String {
+        try {
+            val primaryText = withTimeout(AI_TIMEOUT_MS) { primaryCall() }
+            JSONObject(primaryText) // Reject malformed structured output before returning it.
+            return primaryText
+        } catch (timeout: TimeoutCancellationException) {
+            if (ollamaBaseUrl.isBlank()) throw timeout
+            Log.w(TAG, "$taskTag primary provider timed out; trying configured Ollama fallback.")
+            return generateOllamaJsonFallback(prompt, taskTag)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (failure: Exception) {
+            val invalidStructuredOutput = failure is org.json.JSONException
+            if (ollamaBaseUrl.isBlank() || (!isTransientAiFailure(failure) && !invalidStructuredOutput)) throw failure
+            Log.w(TAG, "$taskTag primary provider failed; trying configured Ollama fallback.")
+            return generateOllamaJsonFallback(prompt, taskTag)
+        }
+    }
+
+    private suspend fun generateOllamaJsonFallback(prompt: String, taskTag: String): String {
+        val provider = OllamaTextProvider(modelId = ollamaModel, baseUrl = ollamaBaseUrl)
+        val schemaGuidance = when (taskTag) {
+            "book_structure" -> """JSON keys: title, author, subject, overview, formulaSheet, chapters. chapters is an array of objects with chapterNumber, title, startPage, endPage, estimatedStudyMinutes."""
+            "chapter_intelligence" -> """JSON keys: quickSummary, detailedSummary, bulletSummary, examRevisionSummary, learningObjectives, mainTopics, prerequisites, keyConcepts, importantDefinitions, importantFacts, importantDates, formulas, examples, misconceptions, comparisons, difficultSections, relatedChapters, conceptMap, glossary. conceptMap is a tree with id, label, summary, pageRef, children; glossary items have term, definition, simplifiedExplanation, example, pageReference, relatedTerms."""
+            "question_generation" -> """Return {"questions":[...]}. Each question has questionText, questionType, difficulty, options, correctAnswer, explanation, section, topic, sourcePage, learningObjective, tags, marks, estimatedSeconds."""
+            "flashcard_generation" -> """Return {"flashcards":[...]}. Each item has format, front, back, hint, pageReference."""
+            "teach_back" -> """JSON keys: scorePercent, accuratePoints, missingPoints, misconceptions, coachingFeedback."""
+            else -> "Return a JSON object matching the task's expected fields."
+        }
+        val jsonPrompt = prompt + "\n\n" + schemaGuidance + "\nReturn valid JSON only. Do not wrap it in markdown fences."
+        return withTimeout(110_000L) {
+            val response = provider.generate(
+                AiTextRequest(
+                    prompt = jsonPrompt,
+                    taskTag = taskTag,
+                    responseFormat = com.example.data.ai.providers.AiResponseFormat.JSON
+                )
+            ).text
+            try {
+                JSONObject(response)
+                response
+            } catch (malformed: org.json.JSONException) {
+                val repairPrompt = "$jsonPrompt\n\nYour previous output was malformed. Repair it into a valid JSON object matching the requested fields. Return JSON only.\n\nPrevious output:\n$response"
+                val repaired = provider.generate(
+                    AiTextRequest(
+                        prompt = repairPrompt,
+                        taskTag = "${taskTag}_json_repair",
+                        responseFormat = com.example.data.ai.providers.AiResponseFormat.JSON
+                    )
+                ).text
+                JSONObject(repaired)
+                repaired
+            }
+        }
+    }
+
+    private suspend fun generateOllamaImageTextFallback(
+        bitmap: Bitmap,
+        prompt: String,
+        taskTag: String
+    ): String {
+        if (ollamaBaseUrl.isBlank() || ollamaVisionModel.isBlank()) {
+            error("No Ollama vision fallback is configured.")
+        }
+        val provider = OllamaTextProvider(modelId = ollamaVisionModel, baseUrl = ollamaBaseUrl)
+        return withTimeout(110_000L) {
+            provider.generateFromImage(
+                bitmap,
+                AiTextRequest(prompt = prompt, taskTag = taskTag)
+            ).text
+        }
+    }
+
+    private suspend fun generateOllamaTextFallback(prompt: String, taskTag: String): String {
+        if (ollamaBaseUrl.isBlank()) error("No Ollama fallback endpoint is configured.")
+        val provider = OllamaTextProvider(modelId = ollamaModel, baseUrl = ollamaBaseUrl)
+        return withTimeout(110_000L) {
+            provider.generate(AiTextRequest(prompt = prompt, taskTag = taskTag)).text
+        }
+    }
+
+    private fun isTransientAiFailure(failure: Throwable): Boolean {
+        val messages = generateSequence(failure) { it.cause }
+            .mapNotNull { it.message }
+            .joinToString(" ")
+            .lowercase()
+        return listOf(
+            "429", "quota", "rate limit", "rate-limit", "timeout", "timed out",
+            "network", "connection", "unavailable", "502", "503", "504", "500"
+        ).any { it in messages }
     }
 
     private val structureSchema = Schema.obj(
@@ -233,14 +359,13 @@ class SoraAiService {
     }
 
     suspend fun extractTextFromPageImage(bitmap: Bitmap, pageNumber: Int): Result<String> {
+        val prompt = "Transcribe all educational text, headings, definitions, tables, equations, and diagram labels from textbook page $pageNumber accurately. Preserve structure with markdown headings and bullet points. Do not invent text that is not visible."
         return try {
             val response = withTimeout(AI_TIMEOUT_MS) {
                 generalModel.generateContent(
                     content {
                         image(bitmap)
-                        text(
-                            "Transcribe all educational text, headings, definitions, tables, equations, and diagram labels from textbook page $pageNumber accurately. Preserve structure with markdown headings and bullet points. Do not invent text that is not visible."
-                        )
+                        text(prompt)
                     }
                 )
             }
@@ -248,13 +373,43 @@ class SoraAiService {
             if (text.isBlank()) Result.failure(IllegalStateException("No readable text found on page $pageNumber."))
             else Result.success(text)
         } catch (e: TimeoutCancellationException) {
-            Log.e(TAG, "OCR timeout on page $pageNumber", e)
-            Result.failure(IllegalStateException("OCR timed out on page $pageNumber."))
+            if (ollamaBaseUrl.isBlank()) {
+                Log.e(TAG, "OCR timeout on page $pageNumber", e)
+                Result.failure(IllegalStateException("OCR timed out on page $pageNumber."))
+            } else {
+                runOllamaImageFallback(bitmap, prompt, "ocr_page_$pageNumber")
+            }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            Log.e(TAG, "OCR failed on page $pageNumber", e)
-            Result.failure(e)
+            if (ollamaBaseUrl.isNotBlank() && isTransientAiFailure(e)) {
+                runOllamaImageFallback(bitmap, prompt, "ocr_page_$pageNumber")
+            } else {
+                Log.e(TAG, "OCR failed on page $pageNumber", e)
+                Result.failure(e)
+            }
+        }
+    }
+
+    private suspend fun runOllamaImageFallback(
+        bitmap: Bitmap,
+        prompt: String,
+        taskTag: String
+    ): Result<String> {
+        return try {
+            Log.w(TAG, "$taskTag primary provider failed; trying configured Ollama vision fallback.")
+            if (ollamaVisionModel.isBlank()) {
+                return Result.failure(IllegalStateException("No Ollama vision model is configured for OCR fallback."))
+            }
+            val provider = OllamaTextProvider(modelId = ollamaVisionModel, baseUrl = ollamaBaseUrl)
+            val response = withTimeout(110_000L) {
+                provider.generateFromImage(bitmap, AiTextRequest(prompt = prompt, taskTag = taskTag))
+            }
+            Result.success(response.text)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (failure: Exception) {
+            Result.failure(failure)
         }
     }
 
@@ -279,10 +434,9 @@ class SoraAiService {
                 $excerpt
             """.trimIndent()
 
-            val response = withTimeout(AI_TIMEOUT_MS) {
-                structureModel.generateContent(prompt)
+            val jsonStr = generateStructuredTextWithFallback(prompt, "book_structure") {
+                structureModel.generateContent(prompt).text ?: error("Empty structure response from AI.")
             }
-            val jsonStr = response.text ?: error("Empty structure response from AI.")
             val json = JSONObject(jsonStr)
             val arr = json.optJSONArray("chapters") ?: JSONArray()
             val chapters = (0 until arr.length()).map { i ->
@@ -359,10 +513,11 @@ class SoraAiService {
                 $contextText
             """.trimIndent()
 
-            val response = withTimeout(AI_TIMEOUT_MS) {
-                chapterIntelModel.generateContent(prompt)
-            }
-            val json = JSONObject(response.text ?: error("Empty chapter intelligence response."))
+            val json = JSONObject(
+                generateStructuredTextWithFallback(prompt, "chapter_intelligence") {
+                    chapterIntelModel.generateContent(prompt).text ?: error("Empty chapter intelligence response.")
+                }
+            )
             val conceptMapStr = json.optJSONObject("conceptMap")?.toString().orEmpty()
 
             val updatedChapter = chapter.copy(
@@ -445,10 +600,11 @@ class SoraAiService {
                 $contextText
             """.trimIndent()
 
-            val response = withTimeout(AI_TIMEOUT_MS) {
-                questionModel.generateContent(prompt)
-            }
-            val json = JSONObject(response.text ?: error("Empty question response."))
+            val json = JSONObject(
+                generateStructuredTextWithFallback(prompt, "question_generation") {
+                    questionModel.generateContent(prompt).text ?: error("Empty question response.")
+                }
+            )
             val arr = json.optJSONArray("questions") ?: JSONArray()
             val maxPage = pages.size.coerceAtLeast(1)
 
@@ -511,10 +667,11 @@ class SoraAiService {
                 $contextText
             """.trimIndent()
 
-            val response = withTimeout(AI_TIMEOUT_MS) {
-                flashcardModel.generateContent(prompt)
-            }
-            val json = JSONObject(response.text ?: error("Empty flashcard response."))
+            val json = JSONObject(
+                generateStructuredTextWithFallback(prompt, "flashcard_generation") {
+                    flashcardModel.generateContent(prompt).text ?: error("Empty flashcard response.")
+                }
+            )
             val arr = json.optJSONArray("flashcards") ?: JSONArray()
             val maxPage = pages.size.coerceAtLeast(1)
 
@@ -587,24 +744,50 @@ class SoraAiService {
         }
 
         val accumulated = StringBuilder()
-        withTimeout(AI_TIMEOUT_MS) {
-            val stream = if (pageBitmap != null) {
-                generalModel.generateContentStream(
-                    content {
-                        image(pageBitmap)
-                        text(conversationText)
+        try {
+            withTimeout(AI_TIMEOUT_MS) {
+                val stream = if (pageBitmap != null) {
+                    generalModel.generateContentStream(
+                        content {
+                            image(pageBitmap)
+                            text(conversationText)
+                        }
+                    )
+                } else {
+                    generalModel.generateContentStream(conversationText)
+                }
+                stream.collect { chunk ->
+                    val piece = chunk.text.orEmpty()
+                    if (piece.isNotEmpty()) {
+                        accumulated.append(piece)
+                        emit(accumulated.toString())
                     }
-                )
-            } else {
-                generalModel.generateContentStream(conversationText)
-            }
-            stream.collect { chunk ->
-                val piece = chunk.text.orEmpty()
-                if (piece.isNotEmpty()) {
-                    accumulated.append(piece)
-                    emit(accumulated.toString())
                 }
             }
+        } catch (timeout: TimeoutCancellationException) {
+            if (accumulated.isNotEmpty() || ollamaBaseUrl.isBlank()) throw timeout
+            Log.w(TAG, "Tutor stream timed out before output; trying configured Ollama fallback.")
+            val fallback = if (pageBitmap != null) {
+                generateOllamaImageTextFallback(pageBitmap, conversationText, "tutor_vision")
+            } else {
+                generateOllamaTextFallback(conversationText, "tutor")
+            }
+            accumulated.append(fallback)
+            emit(accumulated.toString())
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (failure: Exception) {
+            if (accumulated.isNotEmpty() || ollamaBaseUrl.isBlank() || !isTransientAiFailure(failure)) {
+                throw failure
+            }
+            Log.w(TAG, "Tutor stream failed transiently before output; trying configured Ollama fallback.")
+            val fallback = if (pageBitmap != null) {
+                generateOllamaImageTextFallback(pageBitmap, conversationText, "tutor_vision")
+            } else {
+                generateOllamaTextFallback(conversationText, "tutor")
+            }
+            accumulated.append(fallback)
+            emit(accumulated.toString())
         }
     }
 
@@ -623,10 +806,9 @@ class SoraAiService {
                 Perform action: $action (e.g., Simplify, Explain, Key Definitions, Worked Examples, Translate to Spanish/Arabic/French if requested, Practice Questions, or Concise Summary).
                 Keep textbook terminology intact and clearly separate textbook facts from supplementary explanation.
             """.trimIndent()
-            val response = withTimeout(AI_TIMEOUT_MS) {
-                generalModel.generateContent(prompt)
+            val out = withTimeout(TEXT_ROUTER_TIMEOUT_MS) {
+                textRouter.generate(AiTextRequest(prompt = prompt, taskTag = "reading_assistant")).text.trim()
             }
-            val out = response.text?.trim().orEmpty()
             if (out.isBlank()) Result.failure(IllegalStateException("Empty assistant response."))
             else Result.success(out)
         } catch (e: TimeoutCancellationException) {
@@ -654,10 +836,11 @@ class SoraAiService {
                 
                 Score accuracy 0..100, list accurate points, missing key information, any misconceptions, and constructive coaching feedback.
             """.trimIndent()
-            val response = withTimeout(AI_TIMEOUT_MS) {
-                teachBackModel.generateContent(prompt)
-            }
-            val json = JSONObject(response.text ?: error("Empty teach-back response."))
+            val json = JSONObject(
+                generateStructuredTextWithFallback(prompt, "teach_back") {
+                    teachBackModel.generateContent(prompt).text ?: error("Empty teach-back response.")
+                }
+            )
             Result.success(
                 TeachBackFeedback(
                     scorePercent = json.optInt("scorePercent", 0).coerceIn(0, 100),
@@ -682,10 +865,9 @@ class SoraAiService {
                 Solve the following academic/mathematical/scientific equation or word problem with clear step-by-step reasoning, showing intermediate steps, units, and verification of the final answer:
                 $equationInput
             """.trimIndent()
-            val response = withTimeout(AI_TIMEOUT_MS) {
-                generalModel.generateContent(prompt)
+            val text = withTimeout(TEXT_ROUTER_TIMEOUT_MS) {
+                textRouter.generate(AiTextRequest(prompt = prompt, taskTag = "equation_solver")).text.trim()
             }
-            val text = response.text?.trim().orEmpty()
             if (text.isBlank()) Result.failure(IllegalStateException("Empty solution returned."))
             else Result.success(text)
         } catch (e: TimeoutCancellationException) {
@@ -712,10 +894,9 @@ class SoraAiService {
                 Use clean markdown tables or bulleted prerequisite checklists grounded in these pages:
                 $snippet
             """.trimIndent()
-            val response = withTimeout(AI_TIMEOUT_MS) {
-                generalModel.generateContent(prompt)
+            val text = withTimeout(TEXT_ROUTER_TIMEOUT_MS) {
+                textRouter.generate(AiTextRequest(prompt = prompt, taskTag = "chapter_analysis")).text.trim()
             }
-            val text = response.text?.trim().orEmpty()
             if (text.isBlank()) Result.failure(IllegalStateException("Empty analysis returned."))
             else Result.success(text)
         } catch (e: TimeoutCancellationException) {

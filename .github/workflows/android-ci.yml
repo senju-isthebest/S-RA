@@ -1,0 +1,112 @@
+name: Android CI
+
+concurrency:
+  group: android-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  push:
+    branches:
+      - feature/ai-provider-router
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+
+      - name: Install Android SDK packages
+        run: |
+          sdkmanager --install "platform-tools" "platforms;android-36" "platforms;android-36.1" "build-tools;36.0.0"
+
+      - name: Verify Android SDK
+        run: sdkmanager --version
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "9.3.1"
+
+      - name: Create CI-only Firebase configuration
+        run: |
+          cat > app/google-services.json <<'JSON'
+          {
+            "project_info": {
+              "project_number": "123456789012",
+              "project_id": "sora-ci-placeholder",
+              "storage_bucket": "sora-ci-placeholder.appspot.com"
+            },
+            "client": [
+              {
+                "client_info": {
+                  "mobilesdk_app_id": "1:123456789012:android:0000000000000000",
+                  "android_client_info": {
+                    "package_name": "com.aistudio.sora.kxmzqr"
+                  }
+                },
+                "oauth_client": [
+                  {
+                    "client_id": "123456789012-placeholder.apps.googleusercontent.com",
+                    "client_type": 3
+                  }
+                ],
+                "api_key": [
+                  {
+                    "current_key": "CI_PLACEHOLDER_KEY_NOT_VALID_FOR_AUTH"
+                  }
+                ],
+                "services": {
+                  "appinvite_service": {
+                    "other_platform_oauth_client": []
+                  }
+                }
+              }
+            ],
+            "configuration_version": "1"
+          }
+          JSON
+
+      - name: Create temporary CI debug keystore
+        run: |
+          keytool -genkeypair -noprompt -keystore debug.keystore -storepass android -keypass android -alias androiddebugkey -dname "CN=Android Debug,O=Android,C=US" -keyalg RSA -keysize 2048 -validity 10000
+
+      - name: Run unit tests
+        run: |
+          for attempt in 1 2 3; do
+            gradle --no-configuration-cache testDebugUnitTest && exit 0
+            if [ "$attempt" -lt 3 ]; then
+              echo "Gradle test attempt $attempt failed; retrying after Maven throttling/backoff..."
+              sleep $((attempt * 20))
+            fi
+          done
+          exit 1
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-test-reports
+          path: app/build/reports/tests/testDebugUnitTest/
+          if-no-files-found: ignore
+
+      - name: Assemble debug APK
+        run: |
+          for attempt in 1 2 3; do
+            gradle --no-configuration-cache assembleDebug && exit 0
+            if [ "$attempt" -lt 3 ]; then
+              echo "Gradle build attempt $attempt failed; retrying..."
+              sleep $((attempt * 20))
+            fi
+          done
+          exit 1
