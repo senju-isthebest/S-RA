@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.Logout
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -86,7 +87,7 @@ fun AccountSecuritySheet(
                             )
                             if (!profile?.email.isNullOrBlank()) {
                                 Text(
-                                    text = profile?.email.orEmpty(),
+                                    text = profile.email,
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -176,7 +177,7 @@ fun AccountSecuritySheet(
                 },
                 modifier = Modifier.fillMaxWidth().height(48.dp).testTag("sec_sign_out_btn")
             ) {
-                Icon(Icons.Rounded.Logout, contentDescription = null, modifier = Modifier.size(18.dp))
+                Icon(Icons.AutoMirrored.Rounded.Logout, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(8.dp))
                 Text(stringResource(R.string.cd_sign_out))
             }

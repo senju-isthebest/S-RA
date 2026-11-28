@@ -1,0 +1,28 @@
+appId: com.aistudio.sora.desktop
+productName: SŌRA
+copyright: Copyright © 2026 SŌRA Learning
+directories:
+  output: release
+files:
+  - dist/**/*
+  - src/renderer/index.html
+  - src/renderer/styles.css
+  - package.json
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+    - target: msi
+      arch:
+        - x64
+  artifactName: SORA-Setup-${version}-${arch}.${ext}
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+msi:
+  oneClick: false
+  perMachine: false

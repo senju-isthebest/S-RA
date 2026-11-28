@@ -9,6 +9,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
+import androidx.compose.material.icons.automirrored.rounded.Logout
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -252,7 +253,7 @@ fun HomeDashboardScreen(
                                 onClick = onSignOut,
                                 modifier = Modifier.testTag("sign_out_button")
                             ) {
-                                Icon(Icons.Rounded.Logout, contentDescription = stringResource(R.string.cd_sign_out), tint = Color.White)
+                                Icon(Icons.AutoMirrored.Rounded.Logout, contentDescription = stringResource(R.string.cd_sign_out), tint = Color.White)
                             }
                         }
                     }

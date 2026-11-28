@@ -1,0 +1,52 @@
+name: SŌRA Cross-Platform CI
+
+on:
+  push:
+    branches: [ main, master, feature/ai-provider-router ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  android:
+    name: Android Build & Unit/Robolectric Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Run Android Debug Compile & Unit Tests
+        run: gradle :app:testDebugUnitTest :app:compileDebugKotlin --no-daemon
+
+  web-pwa:
+    name: Web / PWA Build & Vitest
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
+  windows-desktop:
+    name: Windows Electron TypeCheck, Unit Tests & Packaging
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: windows
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --ignore-scripts
+      - run: npm run typecheck
+      - run: npm test

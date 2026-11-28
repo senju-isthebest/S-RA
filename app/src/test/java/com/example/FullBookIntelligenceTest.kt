@@ -13,7 +13,6 @@ import com.example.data.ai.AiVisionRequest
 import com.example.data.ai.BookPassageRetriever
 import com.example.data.ai.ConnectionTestResult
 import com.example.data.ai.FullBookIntelligenceEngine
-import com.example.data.ai.ModelDiscoveryResult
 import com.example.data.ai.SoraAiService
 import com.example.data.model.BookPageContent
 import com.example.data.model.Chapter
@@ -31,19 +30,22 @@ private class StubFullBookAdapter(
     val capturedPrompts = mutableListOf<String>()
 
     override suspend fun generateText(request: AiTextRequest, config: AiProviderConfig): AiResponse {
-        capturedPrompts.add(request.userPrompt)
-        if (failChapterMatch != null && request.userPrompt.contains(failChapterMatch)) {
+        capturedPrompts.add(request.prompt)
+        if (failChapterMatch != null &&
+            !request.prompt.contains("executive synthesis") &&
+            request.prompt.contains(failChapterMatch)
+        ) {
             throw IllegalStateException("Simulated timeout on chapter")
         }
         val text = when {
-            request.jsonMode && request.userPrompt.contains("quickSummary") ->
+            request.jsonMode && request.prompt.contains("quickSummary") ->
                 """{"quickSummary":"Chapter digest.","detailedSummary":"Detailed notes.","keyConcepts":["Entropy"],"definitions":["S = k ln W"],"importantFacts":["Energy conserved"],"formulas":["Delta U = Q - W"],"mindMapJson":"{}","glossary":[{"term":"Entropy","definition":"Measure of disorder","page":1}]}"""
-            request.jsonMode && request.userPrompt.contains("correctAnswer") ->
+            request.jsonMode && request.prompt.contains("correctAnswer") ->
                 """{"questions":[{"questionText":"State the First Law.","questionType":"SHORT_ANSWER","difficulty":"MEDIUM","marks":2,"options":[],"correctAnswer":"Energy conservation","explanation":"First Law","sourcePage":2}]}"""
-            request.jsonMode && request.userPrompt.contains("flashcards") ->
+            request.jsonMode && request.prompt.contains("flashcards") ->
                 """{"flashcards":[{"front":"First Law","back":"Delta U = Q - W","hint":"Work and heat","deck":"Thermo","format":"TERM_DEF","page":2}]}"""
-            request.jsonMode && request.userPrompt.contains("consolidatedOverview") ->
-                """{"consolidatedOverview":"Complete book executive synthesis across chapters.","consolidatedFormulaSheet":"Delta U = Q - W\npV = nRT"}"""
+            request.jsonMode && request.prompt.contains("executive synthesis") ->
+                """{"overview":"Complete book executive synthesis across chapters.","formulaSheet":"Delta U = Q - W\npV = nRT"}"""
             else -> "{}"
         }
         return AiResponse(text, AiProviderId.OLLAMA, "llama3.2:3b")
@@ -52,20 +54,18 @@ private class StubFullBookAdapter(
     override fun streamText(request: AiTextRequest, config: AiProviderConfig): Flow<String> = flowOf("")
     override suspend fun generateVision(request: AiVisionRequest, config: AiProviderConfig): AiResponse =
         AiResponse("", AiProviderId.OLLAMA, "llava")
-    override suspend fun discoverModels(config: AiProviderConfig): ModelDiscoveryResult =
-        ModelDiscoveryResult(AiProviderId.OLLAMA, emptyList(), emptyList(), true)
     override suspend fun testConnection(config: AiProviderConfig): ConnectionTestResult =
-        ConnectionTestResult(AiProviderId.OLLAMA, true, "ok")
+        ConnectionTestResult(success = true, provider = AiProviderId.OLLAMA, message = "ok")
 }
 
 class FullBookIntelligenceTest {
 
     private val samplePages = listOf(
-        BookPageContent(1, "Chapter 1 Kinematics covers uniform velocity and acceleration equations v = u + at."),
-        BookPageContent(2, "Newton's second law states Force equals mass times acceleration F = m * a."),
-        BookPageContent(3, "الفصل الثاني: الديناميكا الحرارية والطاقة الحرة وإنتروبيا النظام المغلق."),
-        BookPageContent(4, "Ideal gas equation relates pressure, volume, and temperature: pV = nRT."),
-        BookPageContent(5, "Electrostatics describes Coulomb force between charges F = k * q1 * q2 / r^2.")
+        BookPageContent(1, "Chapter 1 Kinematics covers uniform velocity and acceleration equations v = u + at.", "TEXT"),
+        BookPageContent(2, "Newton's second law states Force equals mass times acceleration F = m * a.", "TEXT"),
+        BookPageContent(3, "الفصل الثاني: الديناميكا الحرارية والطاقة الحرة وإنتروبيا النظام المغلق.", "TEXT"),
+        BookPageContent(4, "Ideal gas equation relates pressure, volume, and temperature: pV = nRT.", "TEXT"),
+        BookPageContent(5, "Electrostatics describes Coulomb force between charges F = k * q1 * q2 / r^2.", "TEXT")
     )
 
     private val sampleChapters = listOf(
@@ -87,7 +87,6 @@ class FullBookIntelligenceTest {
         assertEquals(2, enHits.first().pageNumber)
         assertEquals(1L, enHits.first().chapterNumber)
 
-        // Arabic normalization handles hamza/alef & ta-marbuta cleanly
         val arHits = BookPassageRetriever.retrieve(
             query = "الديناميكا الحراريه انتروبيا",
             pages = samplePages,
@@ -99,9 +98,8 @@ class FullBookIntelligenceTest {
         assertEquals(3, arHits.first().pageNumber)
         assertEquals(2L, arHits.first().chapterNumber)
 
-        // Strict context budget truncation works reliably
         val hugePages = (1..20).map { p ->
-            BookPageContent(p, "Physics concept density momentum impulse energy conservation ".repeat(15))
+            BookPageContent(p, "Physics concept density momentum impulse energy conservation ".repeat(15), "TEXT")
         }
         val budgeted = BookPassageRetriever.retrieve(
             query = "momentum energy conservation",

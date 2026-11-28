@@ -7,9 +7,8 @@ This document covers the Task 2 cloud synchronization system built for SŌRA acr
 SŌRA uses an **offline-first, deterministic synchronization model** backed by Firebase Authentication (Google Sign-In via Jetpack Credential Manager) and Cloud Firestore (`sora-db`). Every user's study artifacts reside under strict zero-trust ownership isolation:
 
 ```
-users/{uid}/
-  profile/meta
-  preferences/main            # Non-secret settings (language, theme, AI endpoint prefs, pomodoro)
+users/{uid}                   # Root user profile fields (userId, displayName, streaks, dailyGoal)
+  preferences/app             # Non-secret settings (language, theme, AI endpoint prefs, pomodoro)
   books/{bookId}/
     chapters/{chapterId}
     glossary/{entryId}
@@ -37,7 +36,7 @@ users/{uid}/
 - `CloudSyncManager` persists pending `OfflineSyncOperation` entries atomically into `filesDir/sync/queue_<sanitized_uid>.json`.
 - Supported operations: `SYNC_BOOK_PAGES`, `UPDATE_BOOK_FIELDS`, `SYNC_PREFERENCES`, `UPSERT_NOTE`, `DELETE_NOTE`, `SUBMIT_EXAM`.
 - When offline (`NetworkConnectivityProvider.isOnline() == false`) or when a transient network error occurs, operations stay queued cleanly with `SyncStatus.OFFLINE_QUEUED` or `SyncStatus.ERROR`.
-- `flushPending()` retries queued items with exponential backoff (`baseBackoffMs * 2^attempt`, capped safely) and stops after `maxAttempts` (`5`), surfacing retry errors in `SyncCenterDialog`.
+- `flushPendingQueue(maxRetries = 3, localOnlyPrivacyMode = ...)` retries queued items with exponential backoff (`500L shl attempt`), surfacing retry errors in `SyncCenterDialog`.
 
 ## Conflict Resolution (`ConflictResolver`)
 

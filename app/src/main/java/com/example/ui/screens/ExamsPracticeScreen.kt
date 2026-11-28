@@ -848,7 +848,7 @@ private fun ExamResultsScreen(
                         Text(stringResource(R.string.qb_correct_ans_prefix, q.correctAnswer), style = MaterialTheme.typography.bodySmall, color = SoraSuccess)
                         if (!eval?.feedback.isNullOrBlank()) {
                             Text(
-                                stringResource(R.string.exams_eval_feedback, eval?.feedback.orEmpty()),
+                                stringResource(R.string.exams_eval_feedback, eval.feedback),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = SoraSoftBlue
                             )

@@ -1,0 +1,171 @@
+:root {
+  --bg: #0f1220;
+  --surface: #171b2e;
+  --surface-elev: #1e233b;
+  --border: rgba(255, 255, 255, 0.1);
+  --text: #eef1ff;
+  --muted: #9aa5ce;
+  --primary: #7c6cff;
+  --primary-soft: rgba(124, 108, 255, 0.18);
+  --success: #2dd4bf;
+  --warning: #fbbf24;
+  --danger: #f87171;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: 'Inter', 'Noto Sans Arabic', system-ui, -apple-system, sans-serif;
+  background: radial-gradient(circle at top right, #1b2040, var(--bg) 55%);
+  color: var(--text);
+  min-height: 100vh;
+}
+
+.app-shell {
+  max-width: 1200px;
+  margin-inline: auto;
+  padding: 1rem;
+  display: grid;
+  gap: 1rem;
+}
+
+.topbar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem 1.25rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+}
+
+.brand-title {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: #fff;
+}
+
+.brand-sub {
+  margin: 0.2rem 0 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.nav-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.tab-btn {
+  border: 1px solid var(--border);
+  background: var(--surface-elev);
+  color: var(--text);
+  padding: 0.55rem 0.9rem;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 0.88rem;
+  min-height: 40px;
+}
+
+.tab-btn.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+  font-weight: 600;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 1.1rem;
+  display: grid;
+  gap: 0.75rem;
+  text-align: start;
+}
+
+.grid-2 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1rem;
+}
+
+.row-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: center;
+}
+
+input, textarea, select {
+  width: 100%;
+  background: #101322;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.6rem 0.8rem;
+  font: inherit;
+}
+
+.btn {
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  padding: 0.6rem 1rem;
+  cursor: pointer;
+  font-weight: 600;
+  min-height: 40px;
+}
+
+.btn.secondary {
+  background: var(--surface-elev);
+  border: 1px solid var(--border);
+}
+
+.btn.danger {
+  background: rgba(248, 113, 113, 0.16);
+  color: var(--danger);
+  border: 1px solid var(--danger);
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.65rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  background: var(--primary-soft);
+  color: #c4bdff;
+}
+
+.badge.ok {
+  background: rgba(45, 212, 191, 0.15);
+  color: var(--success);
+}
+
+.badge.warn {
+  background: rgba(251, 191, 36, 0.16);
+  color: var(--warning);
+}
+
+.passage-card {
+  border-inline-start: 3px solid var(--primary);
+  padding-inline-start: 0.75rem;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 8px;
+  padding: 0.65rem;
+}
+
+.muted {
+  color: var(--muted);
+  font-size: 0.86rem;
+}

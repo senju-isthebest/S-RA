@@ -21,7 +21,7 @@ enum class AppLanguage(val code: String, val nativeLabel: String) {
         get() = if (this == ARABIC) LayoutDirection.Rtl else LayoutDirection.Ltr
 
     val locale: Locale
-        get() = Locale(code)
+        get() = Locale.forLanguageTag(code)
 
     companion object {
         fun fromCodeOrNull(code: String?): AppLanguage? =
