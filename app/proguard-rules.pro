@@ -1,21 +1,46 @@
-# Add project specific ProGuard rules here.
-# You can control the set of applied configuration files using the
-# proguardFiles setting in build.gradle.
-#
-# For more details, see
-#   http://developer.android.com/guide/developing/tools/proguard.html
+# SŌRA Release ProGuard / R8 Rules
+# Preserve debugging line numbers while stripping source filenames for privacy
+-keepattributes SourceFile,LineNumberTable
+-renamesourcefileattribute SourceFile
 
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
+# Preserve annotations and Kotlin metadata required by reflection/Firestore/Compose
+-keepattributes *Annotation*,Signature,InnerClasses,EnclosingMethod
+-keep class kotlin.Metadata { *; }
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
+# Keep Firestore @Keep model classes and all nested fields/getters/setters
+-keep @androidx.annotation.Keep class * { *; }
+-keep class com.example.data.model.** { *; }
+-keepclassmembers class com.example.data.model.** { *; }
 
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+# Keep custom JSON AST classes and Security helpers
+-keep class com.example.data.ai.JsonNode { *; }
+-keep class com.example.data.ai.JsonObj { *; }
+-keep class com.example.data.ai.JsonArr { *; }
+-keep class com.example.data.ai.JsonStr { *; }
+-keep class com.example.data.ai.JsonNum { *; }
+-keep class com.example.data.ai.JsonBool { *; }
+-keep class com.example.data.ai.JsonNull { *; }
+-keep class com.example.core.EncryptedSecretBox { *; }
+
+# Firebase & Google Play Services / Credential Manager
+-dontwarn com.google.errorprone.annotations.**
+-dontwarn javax.annotation.**
+-dontwarn org.conscrypt.**
+-keepclassmembers class * {
+    @com.google.firebase.firestore.PropertyName <fields>;
+    @com.google.firebase.firestore.PropertyName <methods>;
+}
+-keepclassmembers class * {
+    @com.google.firebase.firestore.DocumentId <fields>;
+}
+-keep class com.google.firebase.ai.** { *; }
+-keep class com.google.firebase.auth.** { *; }
+-keep class com.google.firebase.appcheck.** { *; }
+-keep class androidx.credentials.** { *; }
+-keep class com.google.android.libraries.identity.googleid.** { *; }
+
+# Strip verbose debug logs in release builds
+-assumenosideeffects class android.util.Log {
+    public static int d(...);
+    public static int v(...);
+}

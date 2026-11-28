@@ -254,6 +254,32 @@ service cloud.firestore {
              isBoundedString(data.formattedText, 1, 1000);
     }
 
+    function isValidBookPageDoc(data) {
+      return isBoundedString(data.bookId, 1, 128) &&
+             data.pageNumber is int && data.pageNumber >= 1 && data.pageNumber <= 5000 &&
+             isBoundedString(data.text, 0, 12000) &&
+             isBoundedString(data.extractionMethod, 1, 40) &&
+             (!('error' in data) || isBoundedString(data.error, 0, 400)) &&
+             data.clientUpdatedAtMillis is int && data.clientUpdatedAtMillis >= 0;
+    }
+
+    function isValidSyncedPreferences(data) {
+      return isBoundedString(data.themeMode, 1, 20) &&
+             isBoundedString(data.languageCode, 1, 10) &&
+             data.pomodoroWorkMinutes is int && data.pomodoroWorkMinutes >= 5 && data.pomodoroWorkMinutes <= 120 &&
+             data.pomodoroShortBreakMinutes is int && data.pomodoroShortBreakMinutes >= 1 && data.pomodoroShortBreakMinutes <= 30 &&
+             data.pomodoroLongBreakMinutes is int && data.pomodoroLongBreakMinutes >= 5 && data.pomodoroLongBreakMinutes <= 60 &&
+             data.ambientFocusSound is bool &&
+             isBoundedString(data.aiStrategy, 1, 30) &&
+             data.aiFallbackEnabled is bool &&
+             isBoundedString(data.ollamaModel, 0, 100) &&
+             (!('ollamaVisionModel' in data) || isBoundedString(data.ollamaVisionModel, 0, 100)) &&
+             isBoundedString(data.geminiModel, 1, 100) &&
+             data.aiTimeoutMs is int && data.aiTimeoutMs >= 5000 && data.aiTimeoutMs <= 180000 &&
+             data.clientUpdatedAtMillis is int && data.clientUpdatedAtMillis >= 0 &&
+             !('geminiApiKey' in data);
+    }
+
     match /users/{userId} {
       allow get: if isOwner(userId) && isValidId(userId);
       allow list: if false;
@@ -341,6 +367,25 @@ service cloud.firestore {
                            incoming().updatedAt is timestamp && incoming().updatedAt <= request.time &&
                            incoming().diff(existing()).affectedKeys().hasOnly(['chapterNumber', 'term', 'definition', 'simplifiedExplanation', 'example', 'pageReference', 'relatedTerms', 'updatedAt']);
           allow delete: if isOwner(userId) && isValidId(bookId) && isValidId(termId);
+        }
+
+        match /pages/{pageId} {
+          allow get: if isOwner(userId) && isValidId(bookId) && isValidId(pageId);
+          allow list: if isOwner(userId) && isValidId(bookId);
+          allow create: if isOwner(userId) && isValidId(bookId) && isValidId(pageId) &&
+                           incoming().bookId == bookId &&
+                           incoming().keys().hasAll(['bookId', 'pageNumber', 'text', 'extractionMethod', 'clientUpdatedAtMillis', 'createdAt', 'updatedAt']) &&
+                           incoming().keys().hasOnly(['bookId', 'pageNumber', 'text', 'extractionMethod', 'error', 'clientUpdatedAtMillis', 'createdAt', 'updatedAt']) &&
+                           incoming().createdAt is timestamp && incoming().createdAt <= request.time &&
+                           incoming().updatedAt is timestamp && incoming().updatedAt <= request.time &&
+                           isValidBookPageDoc(incoming());
+          allow update: if isOwner(userId) && isValidId(bookId) && isValidId(pageId) &&
+                           isValidBookPageDoc(incoming()) &&
+                           incoming().bookId == existing().bookId &&
+                           incoming().createdAt == existing().createdAt &&
+                           incoming().updatedAt is timestamp && incoming().updatedAt <= request.time &&
+                           incoming().diff(existing()).affectedKeys().hasOnly(['pageNumber', 'text', 'extractionMethod', 'error', 'clientUpdatedAtMillis', 'updatedAt']);
+          allow delete: if isOwner(userId) && isValidId(bookId) && isValidId(pageId);
         }
       }
 
@@ -477,6 +522,23 @@ service cloud.firestore {
                          incoming().updatedAt is timestamp && incoming().updatedAt <= request.time &&
                          incoming().diff(existing()).affectedKeys().hasOnly(['bookId', 'style', 'authors', 'title', 'year', 'publisher', 'pages', 'formattedText', 'updatedAt']);
         allow delete: if isOwner(userId) && isValidId(citationId);
+      }
+
+      match /preferences/{prefId} {
+        allow get: if isOwner(userId) && isValidId(prefId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(prefId) &&
+                         incoming().keys().hasAll(['themeMode', 'languageCode', 'pomodoroWorkMinutes', 'pomodoroShortBreakMinutes', 'pomodoroLongBreakMinutes', 'ambientFocusSound', 'aiStrategy', 'aiFallbackEnabled', 'ollamaModel', 'geminiModel', 'aiTimeoutMs', 'clientUpdatedAtMillis', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['themeMode', 'languageCode', 'pomodoroWorkMinutes', 'pomodoroShortBreakMinutes', 'pomodoroLongBreakMinutes', 'ambientFocusSound', 'aiStrategy', 'aiFallbackEnabled', 'ollamaModel', 'ollamaVisionModel', 'geminiModel', 'aiTimeoutMs', 'clientUpdatedAtMillis', 'createdAt', 'updatedAt']) &&
+                         incoming().createdAt is timestamp && incoming().createdAt <= request.time &&
+                         incoming().updatedAt is timestamp && incoming().updatedAt <= request.time &&
+                         isValidSyncedPreferences(incoming());
+        allow update: if isOwner(userId) && isValidId(prefId) &&
+                         isValidSyncedPreferences(incoming()) &&
+                         incoming().createdAt == existing().createdAt &&
+                         incoming().updatedAt is timestamp && incoming().updatedAt <= request.time &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['themeMode', 'languageCode', 'pomodoroWorkMinutes', 'pomodoroShortBreakMinutes', 'pomodoroLongBreakMinutes', 'ambientFocusSound', 'aiStrategy', 'aiFallbackEnabled', 'ollamaModel', 'ollamaVisionModel', 'geminiModel', 'aiTimeoutMs', 'clientUpdatedAtMillis', 'updatedAt']);
+        allow delete: if isOwner(userId) && isValidId(prefId);
       }
     }
   }

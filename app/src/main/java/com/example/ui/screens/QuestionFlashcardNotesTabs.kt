@@ -14,8 +14,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.example.R
 import com.example.data.model.*
+import com.example.domain.ExamEngine
 import com.example.ui.components.*
 import com.example.ui.theme.SoraSoftBlue
 import com.example.ui.theme.SoraSuccess
@@ -60,6 +63,14 @@ fun QuestionBankPanel(
         }
     }
 
+    val statusFilters = listOf(
+        "ALL" to stringResource(R.string.qb_filter_all),
+        "UNANSWERED" to stringResource(R.string.qb_filter_unanswered),
+        "INCORRECT" to stringResource(R.string.qb_filter_mistakes),
+        "BOOKMARKED" to stringResource(R.string.qb_filter_bookmarked),
+        "WEAK" to stringResource(R.string.qb_filter_weak)
+    )
+
     LazyColumn(
         modifier = Modifier.fillMaxSize().testTag("question_bank_list"),
         contentPadding = PaddingValues(16.dp),
@@ -71,15 +82,15 @@ fun QuestionBankPanel(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("${filtered.size} Question(s)", style = MaterialTheme.typography.titleMedium)
+                Text(stringResource(R.string.qb_count, filtered.size), style = MaterialTheme.typography.titleMedium)
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     IconButton(onClick = { onExportQuestionsPdf(filtered) }, enabled = filtered.isNotEmpty()) {
-                        Icon(Icons.Rounded.PictureAsPdf, contentDescription = "Export questions PDF")
+                        Icon(Icons.Rounded.PictureAsPdf, contentDescription = stringResource(R.string.cd_export_questions))
                     }
                     OutlinedButton(onClick = { showGenerateDialog = true }, enabled = chapters.isNotEmpty()) {
                         Icon(Icons.Rounded.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(4.dp))
-                        Text("Generate")
+                        Text(stringResource(R.string.action_generate))
                     }
                 }
             }
@@ -87,7 +98,7 @@ fun QuestionBankPanel(
 
         item {
             LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                items(listOf("ALL" to "All", "UNANSWERED" to "Unanswered", "INCORRECT" to "Mistakes", "BOOKMARKED" to "Bookmarked", "WEAK" to "Weak")) { (key, label) ->
+                items(statusFilters) { (key, label) ->
                     FilterChip(selected = filterStatus == key, onClick = { filterStatus = key }, label = { Text(label) })
                 }
             }
@@ -96,17 +107,17 @@ fun QuestionBankPanel(
         item {
             LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 items(listOf("ALL", "EASY", "MEDIUM", "HARD")) { diff ->
-                    FilterChip(selected = filterDifficulty == diff, onClick = { filterDifficulty = diff }, label = { Text(diff) })
+                    FilterChip(selected = filterDifficulty == diff, onClick = { filterDifficulty = diff }, label = { Text(localizedDifficulty(diff)) })
                 }
                 if (chapters.isNotEmpty()) {
                     item {
-                        FilterChip(selected = filterChapter == null, onClick = { filterChapter = null }, label = { Text("All Ch.") })
+                        FilterChip(selected = filterChapter == null, onClick = { filterChapter = null }, label = { Text(stringResource(R.string.qb_all_chapters)) })
                     }
                     items(chapters, key = { it.id }) { ch ->
                         FilterChip(
                             selected = filterChapter == ch.chapterNumber,
                             onClick = { filterChapter = ch.chapterNumber },
-                            label = { Text("Ch.${ch.chapterNumber}") }
+                            label = { Text(stringResource(R.string.qb_chapter_short, ch.chapterNumber)) }
                         )
                     }
                 }
@@ -117,10 +128,10 @@ fun QuestionBankPanel(
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                     Button(onClick = { onStartPracticeWith(filtered) }, modifier = Modifier.weight(1f)) {
-                        Text("Practice (${filtered.size})")
+                        Text(stringResource(R.string.qb_practice_btn, filtered.size))
                     }
                     OutlinedButton(onClick = { onCreateCustomExamFrom(filtered) }, modifier = Modifier.weight(1f)) {
-                        Text("Build Exam")
+                        Text(stringResource(R.string.qb_build_exam_btn))
                     }
                 }
             }
@@ -130,8 +141,8 @@ fun QuestionBankPanel(
             item {
                 SoraEmptyState(
                     Icons.Rounded.Quiz,
-                    "No Matching Questions",
-                    "Tap Generate to create AI-crafted questions grounded in your textbook chapters."
+                    stringResource(R.string.qb_empty_title),
+                    stringResource(R.string.qb_empty_sub)
                 )
             }
         } else {
@@ -144,37 +155,37 @@ fun QuestionBankPanel(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                SoraStatusBadge(q.questionType, SoraSoftBlue)
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                                SoraStatusBadge(localizedQuestionTypeName(q.questionType), SoraSoftBlue)
                                 SoraStatusBadge(
-                                    q.difficulty,
+                                    localizedDifficulty(q.difficulty),
                                     when (q.difficulty) {
                                         "HARD" -> MaterialTheme.colorScheme.error
                                         "EASY" -> SoraSuccess
                                         else -> SoraWarning
                                     }
                                 )
-                                Text("Ch.${q.chapterNumber} • p.${q.sourcePage}", style = MaterialTheme.typography.labelSmall)
+                                Text(stringResource(R.string.qb_ref_short, q.chapterNumber, q.sourcePage), style = MaterialTheme.typography.labelSmall)
                             }
                             Row {
                                 IconButton(onClick = { onToggleBookmark(q) }, modifier = Modifier.size(36.dp)) {
                                     Icon(
                                         if (q.bookmarked) Icons.Rounded.Bookmark else Icons.Rounded.BookmarkBorder,
-                                        contentDescription = "Bookmark",
+                                        contentDescription = stringResource(R.string.cd_bookmark),
                                         tint = if (q.bookmarked) SoraWarning else MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
                                 IconButton(onClick = { notingQuestion = q }, modifier = Modifier.size(36.dp)) {
-                                    Icon(Icons.Rounded.EditNote, contentDescription = "Personal note")
+                                    Icon(Icons.Rounded.EditNote, contentDescription = stringResource(R.string.cd_personal_note))
                                 }
                                 IconButton(onClick = { editingQuestion = q }, modifier = Modifier.size(36.dp)) {
-                                    Icon(Icons.Rounded.Edit, contentDescription = "Edit question")
+                                    Icon(Icons.Rounded.Edit, contentDescription = stringResource(R.string.cd_edit_question))
                                 }
                                 IconButton(onClick = { reportingQuestion = q }, modifier = Modifier.size(36.dp)) {
-                                    Icon(Icons.Rounded.Flag, contentDescription = "Report error")
+                                    Icon(Icons.Rounded.Flag, contentDescription = stringResource(R.string.cd_report_error))
                                 }
                                 IconButton(onClick = { onToggleHidden(q) }, modifier = Modifier.size(36.dp)) {
-                                    Icon(Icons.Rounded.VisibilityOff, contentDescription = "Hide question")
+                                    Icon(Icons.Rounded.VisibilityOff, contentDescription = stringResource(R.string.cd_hide_question))
                                 }
                             }
                         }
@@ -186,10 +197,10 @@ fun QuestionBankPanel(
                             }
                         }
                         if (q.personalNote.isNotBlank()) {
-                            Text("Note: ${q.personalNote}", style = MaterialTheme.typography.bodySmall, color = SoraSoftBlue)
+                            Text(stringResource(R.string.qb_note_prefix, q.personalNote), style = MaterialTheme.typography.bodySmall, color = SoraSoftBlue)
                         }
                         TextButton(onClick = { revealAnswer = !revealAnswer }) {
-                            Text(if (revealAnswer) "Hide Answer & Explanation" else "Show Answer & Explanation")
+                            Text(if (revealAnswer) stringResource(R.string.qb_hide_answer) else stringResource(R.string.qb_show_answer))
                         }
                         if (revealAnswer) {
                             Surface(
@@ -198,12 +209,16 @@ fun QuestionBankPanel(
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                    Text("Answer: ${q.correctAnswer}", style = MaterialTheme.typography.labelMedium, color = SoraSuccess)
+                                    Text(stringResource(R.string.qb_answer_prefix, q.correctAnswer), style = MaterialTheme.typography.labelMedium, color = SoraSuccess)
                                     if (q.explanation.isNotBlank()) {
                                         Text(q.explanation, style = MaterialTheme.typography.bodySmall)
                                     }
                                     if (q.aiGenerated) {
-                                        Text("AI-generated • Linked to Ch.${q.chapterNumber}, p.${q.sourcePage}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        Text(
+                                            stringResource(R.string.qb_ai_badge, q.chapterNumber, q.sourcePage),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
                                     }
                                 }
                             }
@@ -220,21 +235,21 @@ fun QuestionBankPanel(
         var exp by remember(q.id) { mutableStateOf(q.explanation) }
         AlertDialog(
             onDismissRequest = { editingQuestion = null },
-            title = { Text("Edit Question") },
+            title = { Text(stringResource(R.string.qb_edit_title)) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(value = txt, onValueChange = { txt = it }, label = { Text("Question") }, minLines = 2)
-                    OutlinedTextField(value = ans, onValueChange = { ans = it }, label = { Text("Correct Answer") })
-                    OutlinedTextField(value = exp, onValueChange = { exp = it }, label = { Text("Explanation") }, minLines = 2)
+                    OutlinedTextField(value = txt, onValueChange = { txt = it }, label = { Text(stringResource(R.string.qb_question_label)) }, minLines = 2)
+                    OutlinedTextField(value = ans, onValueChange = { ans = it }, label = { Text(stringResource(R.string.qb_correct_ans_label)) })
+                    OutlinedTextField(value = exp, onValueChange = { exp = it }, label = { Text(stringResource(R.string.qb_explanation_label)) }, minLines = 2)
                 }
             },
             confirmButton = {
                 Button(onClick = {
                     onEdit(q, txt, ans, exp)
                     editingQuestion = null
-                }) { Text("Save") }
+                }) { Text(stringResource(R.string.action_save)) }
             },
-            dismissButton = { TextButton(onClick = { editingQuestion = null }) { Text("Cancel") } }
+            dismissButton = { TextButton(onClick = { editingQuestion = null }) { Text(stringResource(R.string.action_cancel)) } }
         )
     }
 
@@ -243,11 +258,11 @@ fun QuestionBankPanel(
         var col by remember(q.id) { mutableStateOf(q.collectionName) }
         AlertDialog(
             onDismissRequest = { notingQuestion = null },
-            title = { Text("Question Note & Collection") },
+            title = { Text(stringResource(R.string.qb_note_dialog_title)) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(value = note, onValueChange = { note = it }, label = { Text("Personal study note") }, minLines = 3)
-                    OutlinedTextField(value = col, onValueChange = { col = it }, label = { Text("Collection tag (e.g. Midterm)") }, singleLine = true)
+                    OutlinedTextField(value = note, onValueChange = { note = it }, label = { Text(stringResource(R.string.qb_note_label)) }, minLines = 3)
+                    OutlinedTextField(value = col, onValueChange = { col = it }, label = { Text(stringResource(R.string.qb_collection_label)) }, singleLine = true)
                 }
             },
             confirmButton = {
@@ -255,27 +270,28 @@ fun QuestionBankPanel(
                     onUpdateNote(q, note)
                     if (col != q.collectionName) onSetCollection(q, col)
                     notingQuestion = null
-                }) { Text("Save") }
+                }) { Text(stringResource(R.string.action_save)) }
             },
-            dismissButton = { TextButton(onClick = { notingQuestion = null }) { Text("Cancel") } }
+            dismissButton = { TextButton(onClick = { notingQuestion = null }) { Text(stringResource(R.string.action_cancel)) } }
         )
     }
 
     reportingQuestion?.let { q ->
         var reason by remember(q.id) { mutableStateOf("") }
+        val fallbackReason = stringResource(R.string.qb_report_title)
         AlertDialog(
             onDismissRequest = { reportingQuestion = null },
-            title = { Text("Report Issue in Question") },
+            title = { Text(stringResource(R.string.qb_report_title)) },
             text = {
-                OutlinedTextField(value = reason, onValueChange = { reason = it }, label = { Text("Describe inaccuracy or ambiguity") }, minLines = 2)
+                OutlinedTextField(value = reason, onValueChange = { reason = it }, label = { Text(stringResource(R.string.qb_report_hint)) }, minLines = 2)
             },
             confirmButton = {
                 Button(onClick = {
-                    onReport(q, reason.ifBlank { "Flagged by student" })
+                    onReport(q, reason.ifBlank { fallbackReason })
                     reportingQuestion = null
-                }) { Text("Submit Report") }
+                }) { Text(stringResource(R.string.qb_submit_report)) }
             },
-            dismissButton = { TextButton(onClick = { reportingQuestion = null }) { Text("Cancel") } }
+            dismissButton = { TextButton(onClick = { reportingQuestion = null }) { Text(stringResource(R.string.action_cancel)) } }
         )
     }
 
@@ -283,20 +299,24 @@ fun QuestionBankPanel(
         var selectedCh by remember { mutableStateOf(chapters.first()) }
         var selectedTypes by remember { mutableStateOf(setOf("MCQ", "SHORT_ANSWER", "CALCULATION", "CASE_STUDY")) }
         var count by remember { mutableIntStateOf(6) }
-        var diff by remember { mutableStateOf("Mixed (Easy, Medium, Hard)") }
+        val diff = stringResource(R.string.diff_mixed)
 
         AlertDialog(
             onDismissRequest = { showGenerateDialog = false },
-            title = { Text("Generate Questions") },
+            title = { Text(stringResource(R.string.qb_generate_title)) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Chapter:", style = MaterialTheme.typography.labelMedium)
+                    Text(stringResource(R.string.qb_chapter_label), style = MaterialTheme.typography.labelMedium)
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         items(chapters) { ch ->
-                            FilterChip(selected = selectedCh.id == ch.id, onClick = { selectedCh = ch }, label = { Text("Ch.${ch.chapterNumber}") })
+                            FilterChip(
+                                selected = selectedCh.id == ch.id,
+                                onClick = { selectedCh = ch },
+                                label = { Text(stringResource(R.string.qb_chapter_short, ch.chapterNumber)) }
+                            )
                         }
                     }
-                    Text("Question Types:", style = MaterialTheme.typography.labelMedium)
+                    Text(stringResource(R.string.qb_types_label), style = MaterialTheme.typography.labelMedium)
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         items(QuestionType.entries) { qt ->
                             val isOn = selectedTypes.contains(qt.name)
@@ -305,11 +325,11 @@ fun QuestionBankPanel(
                                 onClick = {
                                     selectedTypes = if (isOn && selectedTypes.size > 1) selectedTypes - qt.name else selectedTypes + qt.name
                                 },
-                                label = { Text(qt.label) }
+                                label = { Text(qt.localizedLabel()) }
                             )
                         }
                     }
-                    Text("Count: $count questions", style = MaterialTheme.typography.labelMedium)
+                    Text(stringResource(R.string.qb_count_label, count), style = MaterialTheme.typography.labelMedium)
                     Slider(value = count.toFloat(), onValueChange = { count = it.toInt() }, valueRange = 3f..15f)
                 }
             },
@@ -317,9 +337,9 @@ fun QuestionBankPanel(
                 Button(onClick = {
                     showGenerateDialog = false
                     onGenerateMore(selectedCh, selectedTypes.toList(), count, diff)
-                }) { Text("Generate") }
+                }) { Text(stringResource(R.string.action_generate)) }
             },
-            dismissButton = { TextButton(onClick = { showGenerateDialog = false }) { Text("Cancel") } }
+            dismissButton = { TextButton(onClick = { showGenerateDialog = false }) { Text(stringResource(R.string.action_cancel)) } }
         )
     }
 }
@@ -331,7 +351,11 @@ fun PracticeSessionPanel(
 ) {
     val activePool = remember(questions) { questions.filter { !it.hidden } }
     if (activePool.isEmpty()) {
-        SoraEmptyState(Icons.Rounded.FitnessCenter, "No Practice Questions", "Generate questions in the Question Bank tab to start adaptive practice.")
+        SoraEmptyState(
+            Icons.Rounded.FitnessCenter,
+            stringResource(R.string.practice_empty_title),
+            stringResource(R.string.practice_empty_sub)
+        )
         return
     }
 
@@ -341,6 +365,7 @@ fun PracticeSessionPanel(
     var selectedAnswer by remember { mutableStateOf("") }
     var submitted by remember { mutableStateOf(false) }
     var isCorrect by remember { mutableStateOf(false) }
+    var evalFeedback by remember { mutableStateOf("") }
     var streak by remember { mutableIntStateOf(0) }
 
     val orderedPool = remember(activePool, adaptiveEnabled, targetDifficulty) {
@@ -362,18 +387,18 @@ fun PracticeSessionPanel(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Question ${(currentIndex % orderedPool.size) + 1} / ${orderedPool.size}", style = MaterialTheme.typography.titleSmall)
+            Text(stringResource(R.string.practice_progress, (currentIndex % orderedPool.size) + 1, orderedPool.size), style = MaterialTheme.typography.titleSmall)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                SoraStatusBadge("Difficulty: ${q.difficulty}", SoraViolet)
-                FilterChip(selected = adaptiveEnabled, onClick = { adaptiveEnabled = !adaptiveEnabled }, label = { Text("Adaptive") })
+                SoraStatusBadge(stringResource(R.string.practice_diff_badge, localizedDifficulty(q.difficulty)), SoraViolet)
+                FilterChip(selected = adaptiveEnabled, onClick = { adaptiveEnabled = !adaptiveEnabled }, label = { Text(stringResource(R.string.practice_adaptive)) })
             }
         }
 
         SoraSurfaceCard(modifier = Modifier.fillMaxWidth()) {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    SoraStatusBadge(q.questionType, SoraSoftBlue)
-                    Text("Ch.${q.chapterNumber} • p.${q.sourcePage}", style = MaterialTheme.typography.labelSmall)
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    SoraStatusBadge(localizedQuestionTypeName(q.questionType), SoraSoftBlue)
+                    Text(stringResource(R.string.qb_ref_short, q.chapterNumber, q.sourcePage), style = MaterialTheme.typography.labelSmall)
                 }
                 Text(q.questionText, style = MaterialTheme.typography.titleMedium)
 
@@ -392,7 +417,7 @@ fun PracticeSessionPanel(
                     OutlinedTextField(
                         value = selectedAnswer,
                         onValueChange = { if (!submitted) selectedAnswer = it },
-                        label = { Text("Your answer") },
+                        label = { Text(stringResource(R.string.practice_your_answer)) },
                         minLines = 2,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -401,13 +426,10 @@ fun PracticeSessionPanel(
                 if (!submitted) {
                     Button(
                         onClick = {
-                            val right = if (q.options.isNotEmpty()) {
-                                selectedAnswer.equals(q.correctAnswer, ignoreCase = true)
-                            } else {
-                                val keys = q.correctAnswer.lowercase().split(Regex("\\W+")).filter { it.length > 3 }
-                                keys.isEmpty() || keys.count { selectedAnswer.lowercase().contains(it) } * 2 >= keys.size
-                            }
+                            val eval = ExamEngine.evaluateOffline(q, selectedAnswer)
+                            val right = eval.isCorrect
                             isCorrect = right
+                            evalFeedback = eval.feedback
                             submitted = true
                             onRecordAttempt(q, right)
                             if (right) {
@@ -425,7 +447,7 @@ fun PracticeSessionPanel(
                         enabled = selectedAnswer.isNotBlank(),
                         modifier = Modifier.fillMaxWidth().testTag("practice_submit_button")
                     ) {
-                        Text("Check Answer")
+                        Text(stringResource(R.string.practice_check_answer))
                     }
                 } else {
                     Surface(
@@ -435,11 +457,14 @@ fun PracticeSessionPanel(
                     ) {
                         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Text(
-                                if (isCorrect) "Correct! (+${q.marks} pts)" else "Incorrect — Added to Mistake Notebook",
+                                if (isCorrect) stringResource(R.string.practice_correct_pts, q.marks) else stringResource(R.string.practice_incorrect_note),
                                 style = MaterialTheme.typography.titleSmall,
                                 color = if (isCorrect) SoraSuccess else MaterialTheme.colorScheme.error
                             )
-                            Text("Correct Answer: ${q.correctAnswer}", style = MaterialTheme.typography.bodySmall)
+                            Text(stringResource(R.string.qb_correct_ans_prefix, q.correctAnswer), style = MaterialTheme.typography.bodySmall)
+                            if (evalFeedback.isNotBlank()) {
+                                Text(stringResource(R.string.exams_eval_feedback, evalFeedback), style = MaterialTheme.typography.labelSmall, color = SoraSoftBlue)
+                            }
                             if (q.explanation.isNotBlank()) {
                                 Text(q.explanation, style = MaterialTheme.typography.bodySmall)
                             }
@@ -449,11 +474,12 @@ fun PracticeSessionPanel(
                         onClick = {
                             currentIndex++
                             selectedAnswer = ""
+                            evalFeedback = ""
                             submitted = false
                         },
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("Next Question")
+                        Text(stringResource(R.string.practice_next_q))
                     }
                 }
             }
@@ -463,7 +489,6 @@ fun PracticeSessionPanel(
 
 @Composable
 fun FlashcardsPanel(
-    bookId: String,
     cards: List<Flashcard>,
     onRateCard: (Flashcard, String) -> Unit,
     onToggleBookmark: (Flashcard) -> Unit,
@@ -494,33 +519,49 @@ fun FlashcardsPanel(
     ) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                FilterChip(selected = dueOnly, onClick = { dueOnly = true; cardIndex = 0; flipped = false }, label = { Text("Due (${cards.count { it.nextReviewAtMillis <= now }})") })
-                FilterChip(selected = !dueOnly, onClick = { dueOnly = false; cardIndex = 0; flipped = false }, label = { Text("All (${cards.size})") })
+                FilterChip(
+                    selected = dueOnly,
+                    onClick = { dueOnly = true; cardIndex = 0; flipped = false },
+                    label = { Text(stringResource(R.string.fc_due_chip, cards.count { it.nextReviewAtMillis <= now })) }
+                )
+                FilterChip(
+                    selected = !dueOnly,
+                    onClick = { dueOnly = false; cardIndex = 0; flipped = false },
+                    label = { Text(stringResource(R.string.fc_all_chip, cards.size)) }
+                )
                 IconButton(onClick = { shuffledOrder = !shuffledOrder; cardIndex = 0; flipped = false }) {
-                    Icon(Icons.Rounded.Shuffle, contentDescription = "Shuffle deck", tint = if (shuffledOrder) SoraViolet else MaterialTheme.colorScheme.onSurfaceVariant)
+                    Icon(
+                        Icons.Rounded.Shuffle,
+                        contentDescription = stringResource(R.string.cd_shuffle_deck),
+                        tint = if (shuffledOrder) SoraViolet else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
             Row {
                 IconButton(onClick = { onExportDeckPdf(cards) }, enabled = cards.isNotEmpty()) {
-                    Icon(Icons.Rounded.PictureAsPdf, contentDescription = "Export flashcards PDF")
+                    Icon(Icons.Rounded.PictureAsPdf, contentDescription = stringResource(R.string.cd_export_cards))
                 }
                 FilledTonalButton(onClick = { showCreateDialog = true }) {
                     Icon(Icons.Rounded.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Text("Card")
+                    Text(stringResource(R.string.fc_new_card))
                 }
             }
         }
 
         if (pool.isEmpty()) {
-            SoraEmptyState(Icons.Rounded.Style, "No Flashcards Yet", "Generate chapter intelligence or add custom flashcards to begin spaced repetition.")
+            SoraEmptyState(
+                Icons.Rounded.Style,
+                stringResource(R.string.fc_empty_title),
+                stringResource(R.string.fc_empty_sub)
+            )
         } else {
             val card = pool[cardIndex % pool.size]
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text("Card ${(cardIndex % pool.size) + 1} of ${pool.size} • ${card.deckName}", style = MaterialTheme.typography.labelMedium)
+                Text(stringResource(R.string.fc_card_counter, (cardIndex % pool.size) + 1, pool.size, card.deckName), style = MaterialTheme.typography.labelMedium)
                 IconButton(onClick = { onToggleBookmark(card) }) {
                     Icon(
                         if (card.bookmarked) Icons.Rounded.Bookmark else Icons.Rounded.BookmarkBorder,
-                        contentDescription = "Bookmark flashcard",
+                        contentDescription = stringResource(R.string.cd_bookmark_card),
                         tint = if (card.bookmarked) SoraWarning else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
@@ -544,16 +585,20 @@ fun FlashcardsPanel(
                     contentAlignment = Alignment.Center
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        SoraStatusBadge(if (rotation <= 90f) "FRONT • ${card.format}" else "ANSWER • p.${card.pageReference}", SoraSoftBlue)
+                        SoraStatusBadge(
+                            if (rotation <= 90f) stringResource(R.string.fc_front_badge, card.format)
+                            else stringResource(R.string.fc_answer_badge, card.pageReference),
+                            SoraSoftBlue
+                        )
                         Text(
                             text = if (rotation <= 90f) card.front else card.back,
                             style = MaterialTheme.typography.titleLarge
                         )
                         if (rotation <= 90f && card.hint.isNotBlank()) {
-                            Text("Hint: ${card.hint}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(stringResource(R.string.fc_hint_prefix, card.hint), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         Text(
-                            text = "Tap card to flip",
+                            text = stringResource(R.string.fc_tap_flip),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -562,51 +607,52 @@ fun FlashcardsPanel(
             }
 
             if (flipped) {
-                Text("Rate recall to schedule SM-2 next review:", style = MaterialTheme.typography.labelMedium)
+                Text(stringResource(R.string.fc_rate_prompt), style = MaterialTheme.typography.labelMedium)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                     OutlinedButton(
                         onClick = { onRateCard(card, "HARD"); flipped = false; cardIndex++ },
                         modifier = Modifier.weight(1f)
-                    ) { Text("Difficult", color = MaterialTheme.colorScheme.error) }
+                    ) { Text(stringResource(R.string.fc_hard), color = MaterialTheme.colorScheme.error) }
                     OutlinedButton(
                         onClick = { onRateCard(card, "MEDIUM"); flipped = false; cardIndex++ },
                         modifier = Modifier.weight(1f)
-                    ) { Text("Medium", color = SoraWarning) }
+                    ) { Text(stringResource(R.string.fc_medium), color = SoraWarning) }
                     Button(
                         onClick = { onRateCard(card, "EASY"); flipped = false; cardIndex++ },
                         modifier = Modifier.weight(1f)
-                    ) { Text("Easy") }
+                    ) { Text(stringResource(R.string.fc_easy)) }
                 }
             } else {
                 Button(onClick = { flipped = true }, modifier = Modifier.fillMaxWidth()) {
-                    Text("Reveal Answer")
+                    Text(stringResource(R.string.fc_reveal))
                 }
             }
         }
     }
 
     if (showCreateDialog) {
-        var deck by remember { mutableStateOf("Custom Deck") }
+        val defaultDeck = stringResource(R.string.label_custom_deck)
+        var deck by remember { mutableStateOf(defaultDeck) }
         var front by remember { mutableStateOf("") }
         var back by remember { mutableStateOf("") }
-        var fmt by remember { mutableStateOf("TERM_DEF") }
+        val fmt = "TERM_DEF"
         AlertDialog(
             onDismissRequest = { showCreateDialog = false },
-            title = { Text("Create Flashcard") },
+            title = { Text(stringResource(R.string.fc_create_title)) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(value = deck, onValueChange = { deck = it }, label = { Text("Deck Name") }, singleLine = true)
-                    OutlinedTextField(value = front, onValueChange = { front = it }, label = { Text("Front (Term / Question)") }, minLines = 2)
-                    OutlinedTextField(value = back, onValueChange = { back = it }, label = { Text("Back (Definition / Answer)") }, minLines = 3)
+                    OutlinedTextField(value = deck, onValueChange = { deck = it }, label = { Text(stringResource(R.string.fc_deck_label)) }, singleLine = true)
+                    OutlinedTextField(value = front, onValueChange = { front = it }, label = { Text(stringResource(R.string.fc_front_label)) }, minLines = 2)
+                    OutlinedTextField(value = back, onValueChange = { back = it }, label = { Text(stringResource(R.string.fc_back_label)) }, minLines = 3)
                 }
             },
             confirmButton = {
                 Button(onClick = {
                     onCreateCard(deck, front, back, fmt)
                     showCreateDialog = false
-                }, enabled = front.isNotBlank() && back.isNotBlank()) { Text("Create") }
+                }, enabled = front.isNotBlank() && back.isNotBlank()) { Text(stringResource(R.string.action_create)) }
             },
-            dismissButton = { TextButton(onClick = { showCreateDialog = false }) { Text("Cancel") } }
+            dismissButton = { TextButton(onClick = { showCreateDialog = false }) { Text(stringResource(R.string.action_cancel)) } }
         )
     }
 }
@@ -638,11 +684,11 @@ fun NotesPanel(
     ) {
         item {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text("Study Notebook", style = MaterialTheme.typography.titleLarge)
+                Text(stringResource(R.string.notes_title), style = MaterialTheme.typography.titleLarge)
                 Button(onClick = { creatingNew = true }, modifier = Modifier.testTag("new_note_button")) {
                     Icon(Icons.Rounded.Add, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(Modifier.width(4.dp))
-                    Text("New Note")
+                    Text(stringResource(R.string.notes_new_btn))
                 }
             }
         }
@@ -650,7 +696,7 @@ fun NotesPanel(
             OutlinedTextField(
                 value = search,
                 onValueChange = { search = it },
-                placeholder = { Text("Search notes & tags...") },
+                placeholder = { Text(stringResource(R.string.notes_search_hint)) },
                 leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
@@ -661,8 +707,8 @@ fun NotesPanel(
             item {
                 SoraEmptyState(
                     Icons.Rounded.Description,
-                    "No Notes Yet",
-                    "Write Markdown notes linked to textbook pages and convert them into flashcards anytime."
+                    stringResource(R.string.notes_empty_title),
+                    stringResource(R.string.notes_empty_sub)
                 )
             }
         } else {
@@ -672,24 +718,26 @@ fun NotesPanel(
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(note.title, style = MaterialTheme.typography.titleMedium)
+                                val baseMeta = stringResource(R.string.notes_meta_line, note.chapterNumber, note.linkedPage)
+                                val tagSuffix = if (note.tags.isNotEmpty()) " • ${note.tags.joinToString()}" else ""
                                 Text(
-                                    "Ch.${note.chapterNumber} • p.${note.linkedPage} ${if (note.tags.isNotEmpty()) "• ${note.tags.joinToString()}" else ""}",
+                                    "$baseMeta$tagSuffix",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                             Row {
                                 IconButton(onClick = { onConvertToFlashcards(note) }) {
-                                    Icon(Icons.Rounded.Style, contentDescription = "Convert note to flashcards")
+                                    Icon(Icons.Rounded.Style, contentDescription = stringResource(R.string.cd_convert_flashcards))
                                 }
                                 IconButton(onClick = { onExportNotePdf(note) }) {
-                                    Icon(Icons.Rounded.PictureAsPdf, contentDescription = "Export note PDF")
+                                    Icon(Icons.Rounded.PictureAsPdf, contentDescription = stringResource(R.string.cd_export_note))
                                 }
                                 IconButton(onClick = { editingNote = note }) {
-                                    Icon(Icons.Rounded.Edit, contentDescription = "Edit note")
+                                    Icon(Icons.Rounded.Edit, contentDescription = stringResource(R.string.cd_edit_note))
                                 }
                                 IconButton(onClick = { onDeleteNote(note.id) }) {
-                                    Icon(Icons.Rounded.Delete, contentDescription = "Delete note", tint = MaterialTheme.colorScheme.error)
+                                    Icon(Icons.Rounded.Delete, contentDescription = stringResource(R.string.cd_delete_note), tint = MaterialTheme.colorScheme.error)
                                 }
                             }
                         }
@@ -710,18 +758,18 @@ fun NotesPanel(
 
         AlertDialog(
             onDismissRequest = { creatingNew = false; editingNote = null },
-            title = { Text(if (target == null) "New Study Note" else "Edit Note") },
+            title = { Text(if (target == null) stringResource(R.string.notes_new_title) else stringResource(R.string.notes_edit_title)) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("Note Title") }, singleLine = true)
-                    OutlinedTextField(value = body, onValueChange = { body = it }, label = { Text("Markdown Content (# Heading, - Bullet, Term: Def)") }, minLines = 5, maxLines = 10)
+                    OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text(stringResource(R.string.notes_title_label)) }, singleLine = true)
+                    OutlinedTextField(value = body, onValueChange = { body = it }, label = { Text(stringResource(R.string.notes_body_label)) }, minLines = 5, maxLines = 10)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedTextField(value = pageText, onValueChange = { pageText = it }, label = { Text("Page #") }, modifier = Modifier.weight(1f), singleLine = true)
-                        OutlinedTextField(value = tagsText, onValueChange = { tagsText = it }, label = { Text("Tags") }, modifier = Modifier.weight(2f), singleLine = true)
+                        OutlinedTextField(value = pageText, onValueChange = { pageText = it }, label = { Text(stringResource(R.string.notes_page_label)) }, modifier = Modifier.weight(1f), singleLine = true)
+                        OutlinedTextField(value = tagsText, onValueChange = { tagsText = it }, label = { Text(stringResource(R.string.notes_tags_label)) }, modifier = Modifier.weight(2f), singleLine = true)
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(checked = quick, onCheckedChange = { quick = it })
-                        Text("Quick Note", style = MaterialTheme.typography.bodySmall)
+                        Text(stringResource(R.string.notes_quick_note), style = MaterialTheme.typography.bodySmall)
                     }
                 }
             },
@@ -739,10 +787,10 @@ fun NotesPanel(
                     )
                     creatingNew = false
                     editingNote = null
-                }, enabled = title.isNotBlank()) { Text("Save") }
+                }, enabled = title.isNotBlank()) { Text(stringResource(R.string.action_save)) }
             },
             dismissButton = {
-                TextButton(onClick = { creatingNew = false; editingNote = null }) { Text("Cancel") }
+                TextButton(onClick = { creatingNew = false; editingNote = null }) { Text(stringResource(R.string.action_cancel)) }
             }
         )
     }

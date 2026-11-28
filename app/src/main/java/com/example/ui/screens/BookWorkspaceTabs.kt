@@ -12,7 +12,11 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.example.R
+import com.example.data.ai.JsonObj
+import com.example.data.ai.SoraJson
 import com.example.data.ai.TeachBackFeedback
 import com.example.data.model.*
 import com.example.ui.components.*
@@ -20,7 +24,6 @@ import com.example.ui.theme.SoraSoftBlue
 import com.example.ui.theme.SoraSuccess
 import com.example.ui.theme.SoraViolet
 import com.example.ui.theme.SoraWarning
-import org.json.JSONObject
 
 @Composable
 fun SummariesTab(
@@ -30,20 +33,46 @@ fun SummariesTab(
     onExportPdf: (title: String, body: String) -> Unit,
     onPrint: (title: String, body: String) -> Unit
 ) {
-    var summaryType by remember { mutableStateOf("Quick") }
+    var summaryType by remember { mutableStateOf("QUICK") }
     var difficulty by remember { mutableStateOf("Standard") }
 
     if (chapter == null) {
-        SoraEmptyState(Icons.Rounded.Summarize, "No Chapters Available", "Analyze a textbook first to view AI chapter intelligence.")
+        SoraEmptyState(
+            Icons.Rounded.Summarize,
+            stringResource(R.string.summaries_empty_title),
+            stringResource(R.string.summaries_empty_sub)
+        )
         return
     }
 
     val activeSummaryText = when (summaryType) {
-        "Quick" -> chapter.quickSummary
-        "Detailed" -> chapter.detailedSummary
-        "Bullet" -> chapter.bulletSummary
+        "QUICK" -> chapter.quickSummary
+        "DETAILED" -> chapter.detailedSummary
+        "BULLET" -> chapter.bulletSummary
         else -> chapter.examRevisionSummary
     }
+
+    val summaryModes = listOf(
+        "QUICK" to stringResource(R.string.summary_quick),
+        "DETAILED" to stringResource(R.string.summary_detailed),
+        "BULLET" to stringResource(R.string.summary_bullet),
+        "EXAM" to stringResource(R.string.summary_exam)
+    )
+    val difficultyLevels = listOf(
+        "Simplified" to stringResource(R.string.diff_simplified),
+        "Standard" to stringResource(R.string.diff_standard),
+        "Rigorous" to stringResource(R.string.diff_rigorous)
+    )
+    val sections = listOf(
+        stringResource(R.string.sec_key_concepts) to chapter.keyConcepts,
+        stringResource(R.string.sec_important_defs) to chapter.importantDefinitions,
+        stringResource(R.string.sec_important_facts) to chapter.importantFacts,
+        stringResource(R.string.sec_important_dates) to chapter.importantDates,
+        stringResource(R.string.sec_formulas) to chapter.formulas,
+        stringResource(R.string.sec_examples) to chapter.examples,
+        stringResource(R.string.sec_misconceptions) to chapter.misconceptions,
+        stringResource(R.string.sec_comparisons) to chapter.comparisons
+    ).filter { it.second.isNotEmpty() }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -52,13 +81,17 @@ fun SummariesTab(
     ) {
         item {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text("Ch. ${chapter.chapterNumber}: ${chapter.title}", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                Text(
+                    stringResource(R.string.summary_ch_header, chapter.chapterNumber, chapter.title),
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.weight(1f)
+                )
                 Row {
-                    IconButton(onClick = { onExportPdf("${book.title} - Ch ${chapter.chapterNumber} Summary", activeSummaryText) }) {
-                        Icon(Icons.Rounded.PictureAsPdf, contentDescription = "Export summary PDF")
+                    IconButton(onClick = { onExportPdf("${book.title} - ${chapter.chapterNumber}", activeSummaryText) }) {
+                        Icon(Icons.Rounded.PictureAsPdf, contentDescription = stringResource(R.string.cd_export_summary))
                     }
-                    IconButton(onClick = { onPrint("${book.title} - Ch ${chapter.chapterNumber}", activeSummaryText) }) {
-                        Icon(Icons.Rounded.Print, contentDescription = "Print summary")
+                    IconButton(onClick = { onPrint("${book.title} - ${chapter.chapterNumber}", activeSummaryText) }) {
+                        Icon(Icons.Rounded.Print, contentDescription = stringResource(R.string.cd_print_summary))
                     }
                 }
             }
@@ -66,11 +99,11 @@ fun SummariesTab(
 
         item {
             LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                items(listOf("Quick", "Detailed", "Bullet", "Exam Revision")) { mode ->
+                items(summaryModes) { (key, label) ->
                     FilterChip(
-                        selected = summaryType == mode,
-                        onClick = { summaryType = mode },
-                        label = { Text(mode) }
+                        selected = summaryType == key,
+                        onClick = { summaryType = key },
+                        label = { Text(label) }
                     )
                 }
             }
@@ -78,14 +111,14 @@ fun SummariesTab(
 
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                listOf("Simplified", "Standard", "Rigorous").forEach { lvl ->
-                    FilterChip(selected = difficulty == lvl, onClick = { difficulty = lvl }, label = { Text(lvl) })
+                difficultyLevels.forEach { (key, label) ->
+                    FilterChip(selected = difficulty == key, onClick = { difficulty = key }, label = { Text(label) })
                 }
                 Spacer(Modifier.weight(1f))
                 FilledTonalButton(onClick = { onRegenerateChapter(difficulty) }) {
                     Icon(Icons.Rounded.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(Modifier.width(4.dp))
-                    Text("Generate")
+                    Text(stringResource(R.string.action_generate))
                 }
             }
         }
@@ -94,7 +127,7 @@ fun SummariesTab(
             SoraSurfaceCard(accentBorder = SoraViolet, modifier = Modifier.fillMaxWidth()) {
                 if (activeSummaryText.isBlank()) {
                     Text(
-                        "Tap Generate to synthesize AI summaries, concepts, formulas, misconceptions, and glossary for this chapter.",
+                        stringResource(R.string.summaries_placeholder),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -103,17 +136,6 @@ fun SummariesTab(
                 }
             }
         }
-
-        val sections = listOf(
-            "Key Concepts" to chapter.keyConcepts,
-            "Important Definitions" to chapter.importantDefinitions,
-            "Important Facts" to chapter.importantFacts,
-            "Important Dates" to chapter.importantDates,
-            "Formulas" to chapter.formulas,
-            "Examples" to chapter.examples,
-            "Common Misconceptions" to chapter.misconceptions,
-            "Important Comparisons" to chapter.comparisons
-        ).filter { it.second.isNotEmpty() }
 
         items(sections) { (title, list) ->
             SoraSurfaceCard(modifier = Modifier.fillMaxWidth()) {
@@ -129,7 +151,6 @@ fun SummariesTab(
 
 @Composable
 fun LearnToolsTab(
-    book: Book,
     chapter: Chapter?,
     pages: List<BookPageContent>,
     teachBackResult: TeachBackFeedback?,
@@ -142,7 +163,11 @@ fun LearnToolsTab(
     onOpenTutor: () -> Unit
 ) {
     if (chapter == null) {
-        SoraEmptyState(Icons.Rounded.School, "Select a Chapter", "Choose a chapter to access Teach-Back, Knowledge Gaps, and Comparison Tables.")
+        SoraEmptyState(
+            Icons.Rounded.School,
+            stringResource(R.string.learn_empty_title),
+            stringResource(R.string.learn_empty_sub)
+        )
         return
     }
     var teachBackInput by remember { mutableStateOf("") }
@@ -152,6 +177,8 @@ fun LearnToolsTab(
         pages.filter { it.pageNumber in chapter.startPage.toInt()..chapter.endPage.toInt() }
             .joinToString("\n") { it.text }.ifBlank { chapter.detailedSummary.ifBlank { chapter.quickSummary } }
     }
+    val compareModeLabel = stringResource(R.string.learn_compare_mode)
+    val gapsModeLabel = stringResource(R.string.learn_gaps_mode)
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -160,22 +187,22 @@ fun LearnToolsTab(
     ) {
         item {
             SoraSurfaceCard(accentBorder = SoraSoftBlue, modifier = Modifier.fillMaxWidth()) {
-                Text("Chapter Learning Goal", style = MaterialTheme.typography.titleSmall)
+                Text(stringResource(R.string.learn_goal_title), style = MaterialTheme.typography.titleSmall)
                 Spacer(Modifier.height(6.dp))
                 OutlinedTextField(
                     value = goalText,
                     onValueChange = { goalText = it },
-                    placeholder = { Text("e.g., Master derivations and score >= 90% on quiz") },
+                    placeholder = { Text(stringResource(R.string.learn_goal_hint)) },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
                 )
                 Spacer(Modifier.height(6.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = { onUpdateGoal(goalText) }) { Text("Save Goal") }
+                    Button(onClick = { onUpdateGoal(goalText) }) { Text(stringResource(R.string.learn_save_goal)) }
                     OutlinedButton(onClick = onOpenTutor) {
                         Icon(Icons.Rounded.Psychology, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(4.dp))
-                        Text("Open 11-Mode Tutor")
+                        Text(stringResource(R.string.learn_open_tutor))
                     }
                 }
             }
@@ -185,12 +212,12 @@ fun LearnToolsTab(
             item {
                 SoraSurfaceCard(modifier = Modifier.fillMaxWidth()) {
                     if (chapter.learningObjectives.isNotEmpty()) {
-                        Text("Learning Objectives", style = MaterialTheme.typography.titleSmall, color = SoraSuccess)
+                        Text(stringResource(R.string.learn_objectives), style = MaterialTheme.typography.titleSmall, color = SoraSuccess)
                         chapter.learningObjectives.forEach { Text("✓ $it", style = MaterialTheme.typography.bodySmall) }
                         Spacer(Modifier.height(8.dp))
                     }
                     if (chapter.prerequisites.isNotEmpty()) {
-                        Text("Prerequisites", style = MaterialTheme.typography.titleSmall, color = SoraWarning)
+                        Text(stringResource(R.string.learn_prerequisites), style = MaterialTheme.typography.titleSmall, color = SoraWarning)
                         chapter.prerequisites.forEach { Text("• $it", style = MaterialTheme.typography.bodySmall) }
                     }
                 }
@@ -200,16 +227,16 @@ fun LearnToolsTab(
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                 OutlinedButton(
-                    onClick = { onRunGapOrComparison("Comparison Table of Key Concepts") },
+                    onClick = { onRunGapOrComparison(compareModeLabel) },
                     modifier = Modifier.weight(1f)
                 ) {
-                    Text("Comparison Table")
+                    Text(stringResource(R.string.learn_comparison_btn))
                 }
                 OutlinedButton(
-                    onClick = { onRunGapOrComparison("Prerequisite Knowledge Gaps & Difficult Sections") },
+                    onClick = { onRunGapOrComparison(gapsModeLabel) },
                     modifier = Modifier.weight(1f)
                 ) {
-                    Text("Knowledge Gaps")
+                    Text(stringResource(R.string.learn_gaps_btn))
                 }
             }
         }
@@ -218,8 +245,8 @@ fun LearnToolsTab(
             item {
                 SoraSurfaceCard(accentBorder = SoraSoftBlue, modifier = Modifier.fillMaxWidth()) {
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                        Text("AI Learning Analysis", style = MaterialTheme.typography.titleSmall, color = SoraSoftBlue)
-                        IconButton(onClick = onClearComparison) { Icon(Icons.Rounded.Close, contentDescription = "Dismiss") }
+                        Text(stringResource(R.string.learn_analysis_title), style = MaterialTheme.typography.titleSmall, color = SoraSoftBlue)
+                        IconButton(onClick = onClearComparison) { Icon(Icons.Rounded.Close, contentDescription = stringResource(R.string.cd_dismiss)) }
                     }
                     SoraMarkdownText(comparisonOrGapResult)
                 }
@@ -230,16 +257,16 @@ fun LearnToolsTab(
         item {
             SoraSurfaceCard(accentBorder = SoraViolet, modifier = Modifier.fillMaxWidth()) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Teach-Back Mastery Check", style = MaterialTheme.typography.titleMedium, color = SoraViolet)
+                    Text(stringResource(R.string.learn_teachback_title), style = MaterialTheme.typography.titleMedium, color = SoraViolet)
                     Text(
-                        "Explain \"${chapter.title}\" in your own words as if teaching a classmate. SŌRA will evaluate accuracy and identify missing concepts.",
+                        stringResource(R.string.learn_teachback_desc, chapter.title),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     OutlinedTextField(
                         value = teachBackInput,
                         onValueChange = { teachBackInput = it },
-                        label = { Text("Your explanation") },
+                        label = { Text(stringResource(R.string.learn_teachback_label)) },
                         minLines = 4,
                         modifier = Modifier.fillMaxWidth().testTag("teach_back_input")
                     )
@@ -248,7 +275,7 @@ fun LearnToolsTab(
                         enabled = teachBackInput.isNotBlank(),
                         modifier = Modifier.testTag("teach_back_submit")
                     ) {
-                        Text("Evaluate My Explanation")
+                        Text(stringResource(R.string.learn_teachback_eval))
                     }
                 }
             }
@@ -258,23 +285,27 @@ fun LearnToolsTab(
             item {
                 SoraSurfaceCard(accentBorder = SoraSuccess, modifier = Modifier.fillMaxWidth()) {
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                        Text("Teach-Back Score: ${teachBackResult.scorePercent}%", style = MaterialTheme.typography.titleMedium, color = SoraSuccess)
-                        IconButton(onClick = onClearTeachBack) { Icon(Icons.Rounded.Close, contentDescription = "Close feedback") }
+                        Text(
+                            stringResource(R.string.learn_teachback_score, teachBackResult.scorePercent),
+                            style = MaterialTheme.typography.titleMedium,
+                            color = SoraSuccess
+                        )
+                        IconButton(onClick = onClearTeachBack) { Icon(Icons.Rounded.Close, contentDescription = stringResource(R.string.cd_close_feedback)) }
                     }
                     Text(teachBackResult.coachingFeedback, style = MaterialTheme.typography.bodyMedium)
                     if (teachBackResult.accuratePoints.isNotEmpty()) {
                         Spacer(Modifier.height(6.dp))
-                        Text("Accurate Points:", style = MaterialTheme.typography.labelMedium, color = SoraSuccess)
+                        Text(stringResource(R.string.learn_accurate_points), style = MaterialTheme.typography.labelMedium, color = SoraSuccess)
                         teachBackResult.accuratePoints.forEach { Text("✓ $it", style = MaterialTheme.typography.bodySmall) }
                     }
                     if (teachBackResult.missingPoints.isNotEmpty()) {
                         Spacer(Modifier.height(6.dp))
-                        Text("Missing Information:", style = MaterialTheme.typography.labelMedium, color = SoraWarning)
+                        Text(stringResource(R.string.learn_missing_points), style = MaterialTheme.typography.labelMedium, color = SoraWarning)
                         teachBackResult.missingPoints.forEach { Text("• $it", style = MaterialTheme.typography.bodySmall) }
                     }
                     if (teachBackResult.misconceptions.isNotEmpty()) {
                         Spacer(Modifier.height(6.dp))
-                        Text("Misconceptions:", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.error)
+                        Text(stringResource(R.string.learn_misconceptions), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.error)
                         teachBackResult.misconceptions.forEach { Text("! $it", style = MaterialTheme.typography.bodySmall) }
                     }
                 }
@@ -292,14 +323,18 @@ fun MindMapsTab(
     if (chapter == null || chapter.conceptMapJson.isBlank()) {
         SoraEmptyState(
             Icons.Rounded.AccountTree,
-            "Concept Map Not Generated Yet",
-            "Open the Summaries tab and tap Generate to build an interactive concept map for this chapter."
+            stringResource(R.string.mindmap_empty_title),
+            stringResource(R.string.mindmap_empty_sub)
         )
         return
     }
     val rootNode = remember(chapter.conceptMapJson) { parseConceptNode(chapter.conceptMapJson) }
     if (rootNode == null) {
-        SoraEmptyState(Icons.Rounded.AccountTree, "Invalid Concept Map Data", "Regenerate chapter intelligence to rebuild the map.")
+        SoraEmptyState(
+            Icons.Rounded.AccountTree,
+            stringResource(R.string.mindmap_invalid_title),
+            stringResource(R.string.mindmap_invalid_sub)
+        )
         return
     }
 
@@ -309,8 +344,8 @@ fun MindMapsTab(
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         item {
-            Text("Interactive Concept Map", style = MaterialTheme.typography.titleLarge)
-            Text("Expand/collapse branches, jump to source pages, or generate targeted questions from any node.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(stringResource(R.string.mindmap_title), style = MaterialTheme.typography.titleLarge)
+            Text(stringResource(R.string.mindmap_subtitle), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         item {
             ConceptTreeNodeItem(
@@ -349,7 +384,7 @@ private fun ConceptTreeNodeItem(
                         IconButton(onClick = { expanded = !expanded }, modifier = Modifier.size(36.dp)) {
                             Icon(
                                 if (expanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
-                                contentDescription = "Toggle branch"
+                                contentDescription = stringResource(R.string.cd_toggle_branch)
                             )
                         }
                     }
@@ -362,10 +397,10 @@ private fun ConceptTreeNodeItem(
                 }
                 Row {
                     TextButton(onClick = { onJumpToPage(node.pageRef) }) {
-                        Text("p.${node.pageRef}", style = MaterialTheme.typography.labelSmall)
+                        Text(stringResource(R.string.page_ref_short, node.pageRef), style = MaterialTheme.typography.labelSmall)
                     }
                     IconButton(onClick = { onGenerateQuestionsFromNode(node.label) }) {
-                        Icon(Icons.Rounded.Quiz, contentDescription = "Generate questions for ${node.label}", modifier = Modifier.size(18.dp))
+                        Icon(Icons.Rounded.Quiz, contentDescription = stringResource(R.string.cd_generate_node_q, node.label), modifier = Modifier.size(18.dp))
                     }
                 }
             }
@@ -405,7 +440,7 @@ fun GlossaryTab(
             OutlinedTextField(
                 value = query,
                 onValueChange = { query = it },
-                placeholder = { Text("Search glossary terms...") },
+                placeholder = { Text(stringResource(R.string.glossary_search_hint)) },
                 leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
@@ -413,13 +448,17 @@ fun GlossaryTab(
         }
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(selected = sortAlpha, onClick = { sortAlpha = true }, label = { Text("Alphabetical") })
-                FilterChip(selected = !sortAlpha, onClick = { sortAlpha = false }, label = { Text("By Chapter") })
+                FilterChip(selected = sortAlpha, onClick = { sortAlpha = true }, label = { Text(stringResource(R.string.glossary_alpha)) })
+                FilterChip(selected = !sortAlpha, onClick = { sortAlpha = false }, label = { Text(stringResource(R.string.glossary_by_ch)) })
             }
         }
         if (displayed.isEmpty()) {
             item {
-                SoraEmptyState(Icons.Rounded.MenuBook, "No Glossary Terms Yet", "Generate chapter intelligence to extract key terminology and simplified explanations.")
+                SoraEmptyState(
+                    Icons.Rounded.MenuBook,
+                    stringResource(R.string.glossary_empty_title),
+                    stringResource(R.string.glossary_empty_sub)
+                )
             }
         } else {
             items(displayed, key = { it.id }) { item ->
@@ -427,19 +466,19 @@ fun GlossaryTab(
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         Text(item.term, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
                         TextButton(onClick = { onJumpToPage(item.pageReference.toInt()) }) {
-                            Text("Ch.${item.chapterNumber} • p.${item.pageReference}", style = MaterialTheme.typography.labelSmall)
+                            Text(stringResource(R.string.glossary_ref, item.chapterNumber, item.pageReference), style = MaterialTheme.typography.labelSmall)
                         }
                     }
                     Text(item.definition, style = MaterialTheme.typography.bodyMedium)
                     if (item.simplifiedExplanation.isNotBlank()) {
                         Spacer(Modifier.height(4.dp))
-                        Text("Simple: ${item.simplifiedExplanation}", style = MaterialTheme.typography.bodySmall, color = SoraSoftBlue)
+                        Text(stringResource(R.string.glossary_simple, item.simplifiedExplanation), style = MaterialTheme.typography.bodySmall, color = SoraSoftBlue)
                     }
                     if (item.example.isNotBlank()) {
-                        Text("Example: ${item.example}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(stringResource(R.string.glossary_example, item.example), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     if (item.relatedTerms.isNotEmpty()) {
-                        Text("Related: ${item.relatedTerms.joinToString(", ")}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(stringResource(R.string.glossary_related, item.relatedTerms.joinToString(", ")), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
@@ -449,18 +488,18 @@ fun GlossaryTab(
 
 private fun parseConceptNode(jsonStr: String): ConceptNode? {
     return try {
-        fun parseObj(obj: JSONObject): ConceptNode {
-            val arr = obj.optJSONArray("children")
-            val children = if (arr != null) (0 until arr.length()).map { parseObj(arr.getJSONObject(it)) } else emptyList()
+        fun parseObj(obj: JsonObj): ConceptNode {
+            val arr = obj.arr("children")
+            val children = arr?.items?.mapNotNull { (it as? JsonObj)?.let(::parseObj) } ?: emptyList()
             return ConceptNode(
-                id = obj.optString("id", obj.optString("label", "node")),
-                label = obj.optString("label", "Concept"),
-                summary = obj.optString("summary", ""),
-                pageRef = obj.optInt("pageRef", 1).coerceAtLeast(1),
+                id = obj.str("id").ifBlank { obj.str("label", "node") },
+                label = obj.str("label", "Concept"),
+                summary = obj.str("summary"),
+                pageRef = obj.intVal("pageRef", 1).coerceAtLeast(1),
                 children = children
             )
         }
-        parseObj(JSONObject(jsonStr))
+        parseObj(SoraJson.parseObject(jsonStr))
     } catch (_: Exception) {
         null
     }

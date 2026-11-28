@@ -22,7 +22,12 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.example.R
+import com.example.core.AppLanguage
+import com.example.core.LocalAppLanguage
+import com.example.data.ai.SoraJson
 import com.example.data.local.DocumentProcessor
 import com.example.data.model.Book
 import com.example.data.model.BookPageContent
@@ -32,8 +37,6 @@ import com.example.ui.components.SoraSurfaceCard
 import com.example.ui.theme.SoraSoftBlue
 import com.example.ui.theme.SoraViolet
 import com.example.ui.theme.SoraWarning
-import org.json.JSONObject
-import java.util.Locale
 
 @Composable
 fun TextbookReaderTab(
@@ -50,6 +53,7 @@ fun TextbookReaderTab(
     onOpenTutorWithImage: () -> Unit
 ) {
     val context = LocalContext.current
+    val appLanguage = LocalAppLanguage.current
     var currentPageNum by remember(book.id) { mutableIntStateOf(book.currentPage.toInt().coerceIn(1, pages.size.coerceAtLeast(1))) }
     var searchQuery by remember { mutableStateOf("") }
     var showVisualPage by remember { mutableStateOf(book.sourceType == "PDF" || book.sourceType == "IMAGE") }
@@ -62,13 +66,18 @@ fun TextbookReaderTab(
 
     val tts = remember {
         var instance: TextToSpeech? = null
-        instance = TextToSpeech(context) { status ->
+        instance = TextToSpeech(context.applicationContext) { status ->
             if (status == TextToSpeech.SUCCESS) {
-                instance?.language = Locale.US
                 ttsReady = true
             }
         }
         instance
+    }
+
+    LaunchedEffect(ttsReady, appLanguage) {
+        if (ttsReady) {
+            tts.language = appLanguage.locale
+        }
     }
 
     DisposableEffect(Unit) {
@@ -96,10 +105,10 @@ fun TextbookReaderTab(
         if (searchQuery.isBlank()) emptyList()
         else pages.filter { it.text.contains(searchQuery, ignoreCase = true) }.map { it.pageNumber }
     }
-    val highlightsMap = remember(book.highlightsJson) {
-        try { JSONObject(book.highlightsJson.ifBlank { "{}" }) } catch (_: Exception) { JSONObject() }
+    val highlightsObj = remember(book.highlightsJson) {
+        try { SoraJson.parseObject(book.highlightsJson.ifBlank { "{}" }) } catch (_: Exception) { null }
     }
-    val pageHighlights = highlightsMap.optString(currentPageNum.toString(), "")
+    val pageHighlights = highlightsObj?.str(currentPageNum.toString()).orEmpty()
     val isBookmarked = book.bookmarkedPages.contains(currentPageNum.toLong())
 
     Column(
@@ -121,10 +130,10 @@ fun TextbookReaderTab(
                     enabled = currentPageNum > 1,
                     modifier = Modifier.testTag("reader_prev_page")
                 ) {
-                    Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Previous page")
+                    Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.cd_prev_page))
                 }
                 Text(
-                    "Page $currentPageNum / ${pages.size.coerceAtLeast(1)}",
+                    stringResource(R.string.reader_page_counter, currentPageNum, pages.size.coerceAtLeast(1)),
                     style = MaterialTheme.typography.titleSmall
                 )
                 IconButton(
@@ -132,7 +141,7 @@ fun TextbookReaderTab(
                     enabled = currentPageNum < pages.size,
                     modifier = Modifier.testTag("reader_next_page")
                 ) {
-                    Icon(Icons.AutoMirrored.Rounded.ArrowForward, contentDescription = "Next page")
+                    Icon(Icons.AutoMirrored.Rounded.ArrowForward, contentDescription = stringResource(R.string.cd_next_page))
                 }
             }
 
@@ -140,12 +149,12 @@ fun TextbookReaderTab(
                 IconButton(onClick = { onToggleBookmark(currentPageNum) }) {
                     Icon(
                         if (isBookmarked) Icons.Rounded.Bookmark else Icons.Rounded.BookmarkBorder,
-                        contentDescription = "Bookmark page",
+                        contentDescription = stringResource(R.string.cd_bookmark_page),
                         tint = if (isBookmarked) SoraWarning else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
                 IconButton(onClick = { showHighlightDialog = true }) {
-                    Icon(Icons.Rounded.BorderColor, contentDescription = "Highlight or add note")
+                    Icon(Icons.Rounded.BorderColor, contentDescription = stringResource(R.string.cd_highlight_note))
                 }
                 IconButton(onClick = {
                     val speakText = currentPage?.text.orEmpty()
@@ -159,7 +168,7 @@ fun TextbookReaderTab(
                 }) {
                     Icon(
                         if (isSpeaking) Icons.Rounded.StopCircle else Icons.Rounded.VolumeUp,
-                        contentDescription = "Read page aloud",
+                        contentDescription = stringResource(R.string.cd_read_aloud),
                         tint = if (isSpeaking) SoraViolet else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
@@ -170,19 +179,19 @@ fun TextbookReaderTab(
         OutlinedTextField(
             value = searchQuery,
             onValueChange = { searchQuery = it },
-            placeholder = { Text("Search inside book...") },
+            placeholder = { Text(stringResource(R.string.reader_search_hint)) },
             leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
             singleLine = true,
             modifier = Modifier.fillMaxWidth()
         )
         if (searchHits.isNotEmpty()) {
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("Matches:", style = MaterialTheme.typography.labelSmall)
+                Text(stringResource(R.string.reader_matches), style = MaterialTheme.typography.labelSmall)
                 searchHits.take(6).forEach { p ->
                     FilterChip(
                         selected = p == currentPageNum,
                         onClick = { currentPageNum = p },
-                        label = { Text("p.$p") }
+                        label = { Text(stringResource(R.string.page_ref_short, p)) }
                     )
                 }
             }
@@ -199,23 +208,23 @@ fun TextbookReaderTab(
                     FilterChip(
                         selected = showVisualPage,
                         onClick = { showVisualPage = true },
-                        label = { Text("Original Page") }
+                        label = { Text(stringResource(R.string.reader_original_page)) }
                     )
                 }
                 FilterChip(
                     selected = !showVisualPage,
                     onClick = { showVisualPage = false },
-                    label = { Text("Extracted Text") }
+                    label = { Text(stringResource(R.string.reader_extracted_text)) }
                 )
             }
             if (showVisualPage && renderedBitmap != null) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = { zoomScale = (zoomScale - 0.25f).coerceAtLeast(1f) }) {
-                        Icon(Icons.Rounded.ZoomOut, contentDescription = "Zoom out")
+                        Icon(Icons.Rounded.ZoomOut, contentDescription = stringResource(R.string.cd_zoom_out))
                     }
-                    Text("${(zoomScale * 100).toInt()}%", style = MaterialTheme.typography.labelSmall)
+                    Text(stringResource(R.string.home_percent_value, (zoomScale * 100).toInt()), style = MaterialTheme.typography.labelSmall)
                     IconButton(onClick = { zoomScale = (zoomScale + 0.25f).coerceAtMost(2.5f) }) {
-                        Icon(Icons.Rounded.ZoomIn, contentDescription = "Zoom in")
+                        Icon(Icons.Rounded.ZoomIn, contentDescription = stringResource(R.string.cd_zoom_in))
                     }
                 }
             }
@@ -231,7 +240,7 @@ fun TextbookReaderTab(
             ) {
                 Image(
                     bitmap = renderedBitmap!!.asImageBitmap(),
-                    contentDescription = "Textbook page $currentPageNum",
+                    contentDescription = stringResource(R.string.cd_page_image, currentPageNum),
                     contentScale = ContentScale.FillWidth,
                     modifier = Modifier
                         .fillMaxWidth()
@@ -243,7 +252,7 @@ fun TextbookReaderTab(
                 val text = currentPage?.text.orEmpty()
                 if (text.isBlank()) {
                     Text(
-                        currentPage?.error ?: "No extracted text on this page. Use Original Page view or Retry Failed Pages.",
+                        currentPage?.error ?: stringResource(R.string.reader_no_text),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -254,7 +263,7 @@ fun TextbookReaderTab(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         SoraStatusBadge(currentPage?.extractionMethod ?: "TEXT", SoraSoftBlue)
-                        Text("${text.length} chars", style = MaterialTheme.typography.labelSmall)
+                        Text(stringResource(R.string.reader_chars_count, text.length), style = MaterialTheme.typography.labelSmall)
                     }
                     Spacer(Modifier.height(10.dp))
                     SoraMarkdownText(text)
@@ -264,7 +273,7 @@ fun TextbookReaderTab(
 
         if (pageHighlights.isNotBlank()) {
             SoraSurfaceCard(accentBorder = SoraWarning, modifier = Modifier.fillMaxWidth()) {
-                Text("Page $currentPageNum Highlights & Notes", style = MaterialTheme.typography.labelMedium, color = SoraWarning)
+                Text(stringResource(R.string.reader_highlights_title, currentPageNum), style = MaterialTheme.typography.labelMedium, color = SoraWarning)
                 Spacer(Modifier.height(4.dp))
                 Text(pageHighlights, style = MaterialTheme.typography.bodySmall)
             }
@@ -282,7 +291,7 @@ fun TextbookReaderTab(
             ) {
                 Icon(Icons.Rounded.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp))
                 Spacer(Modifier.width(6.dp))
-                Text("Reading Assistant")
+                Text(stringResource(R.string.reader_assistant_btn))
             }
             OutlinedButton(
                 onClick = onOpenTutorWithImage,
@@ -290,7 +299,7 @@ fun TextbookReaderTab(
             ) {
                 Icon(Icons.Rounded.Psychology, contentDescription = null, modifier = Modifier.size(16.dp))
                 Spacer(Modifier.width(6.dp))
-                Text("Ask Diagram / Tutor")
+                Text(stringResource(R.string.reader_diagram_btn))
             }
         }
 
@@ -301,9 +310,9 @@ fun TextbookReaderTab(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Reading Assistant Insight", style = MaterialTheme.typography.titleSmall, color = SoraViolet)
+                    Text(stringResource(R.string.reader_insight_title), style = MaterialTheme.typography.titleSmall, color = SoraViolet)
                     IconButton(onClick = onClearAssistant) {
-                        Icon(Icons.Rounded.Close, contentDescription = "Close insight")
+                        Icon(Icons.Rounded.Close, contentDescription = stringResource(R.string.cd_close_insight))
                     }
                 }
                 SoraMarkdownText(readingAssistantResult)
@@ -316,18 +325,18 @@ fun TextbookReaderTab(
         var alsoNote by remember { mutableStateOf(true) }
         AlertDialog(
             onDismissRequest = { showHighlightDialog = false },
-            title = { Text("Highlight / Page Note (p. $currentPageNum)") },
+            title = { Text(stringResource(R.string.reader_highlight_dialog, currentPageNum)) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(
                         value = snippet,
                         onValueChange = { snippet = it },
-                        label = { Text("Key quote or personal annotation") },
+                        label = { Text(stringResource(R.string.reader_highlight_hint)) },
                         minLines = 3
                     )
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(checked = alsoNote, onCheckedChange = { alsoNote = it })
-                        Text("Also save to Study Notebook", style = MaterialTheme.typography.bodySmall)
+                        Text(stringResource(R.string.reader_also_note), style = MaterialTheme.typography.bodySmall)
                     }
                 }
             },
@@ -336,17 +345,30 @@ fun TextbookReaderTab(
                     onAddHighlight(currentPageNum, snippet)
                     if (alsoNote) onAddLinkedNote(currentPageNum, snippet)
                     showHighlightDialog = false
-                }, enabled = snippet.isNotBlank()) { Text("Save") }
+                }, enabled = snippet.isNotBlank()) { Text(stringResource(R.string.action_save)) }
             },
-            dismissButton = { TextButton(onClick = { showHighlightDialog = false }) { Text("Cancel") } }
+            dismissButton = { TextButton(onClick = { showHighlightDialog = false }) { Text(stringResource(R.string.action_cancel)) } }
         )
     }
 
     if (showAssistantPicker) {
-        val actions = listOf("Simplify", "Explain", "Key Definitions", "Worked Examples", "Translate to Spanish", "Practice Questions", "Concise Summary")
+        val translateLabel = if (appLanguage == AppLanguage.ARABIC) {
+            stringResource(R.string.ra_translate_en)
+        } else {
+            stringResource(R.string.ra_translate_ar)
+        }
+        val actions = listOf(
+            stringResource(R.string.ra_simplify),
+            stringResource(R.string.ra_explain),
+            stringResource(R.string.ra_definitions),
+            stringResource(R.string.ra_examples),
+            translateLabel,
+            stringResource(R.string.ra_practice),
+            stringResource(R.string.ra_summary)
+        )
         AlertDialog(
             onDismissRequest = { showAssistantPicker = false },
-            title = { Text("Reading Assistant (Page $currentPageNum)") },
+            title = { Text(stringResource(R.string.reader_assistant_dialog, currentPageNum)) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     actions.forEach { act ->
@@ -363,7 +385,7 @@ fun TextbookReaderTab(
                 }
             },
             confirmButton = {},
-            dismissButton = { TextButton(onClick = { showAssistantPicker = false }) { Text("Close") } }
+            dismissButton = { TextButton(onClick = { showAssistantPicker = false }) { Text(stringResource(R.string.action_close)) } }
         )
     }
 }

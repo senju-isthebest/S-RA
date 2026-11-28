@@ -8,6 +8,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -20,20 +21,22 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.R
+import com.example.core.AppLanguage
+import com.example.core.SoraFormatters
 import com.example.data.model.*
+import com.example.data.sync.SyncState
+import com.example.data.sync.SyncStatus
 import com.example.ui.components.*
 import com.example.ui.theme.SoraSoftBlue
 import com.example.ui.theme.SoraSuccess
 import com.example.ui.theme.SoraThemeMode
 import com.example.ui.theme.SoraViolet
 import com.example.ui.theme.SoraWarning
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 @Composable
 fun HomeDashboardScreen(
@@ -46,6 +49,12 @@ fun HomeDashboardScreen(
     focusSessions: List<FocusSession>,
     revisionQueue: List<SmartRevisionItem>,
     themeMode: SoraThemeMode,
+    appLanguage: AppLanguage = AppLanguage.ENGLISH,
+    syncState: SyncState = SyncState(),
+    onOpenSyncCenter: () -> Unit = {},
+    onOpenAccountSecurity: () -> Unit = {},
+    onSelectLanguage: (AppLanguage) -> Unit = {},
+    onOpenAiSettings: () -> Unit = {},
     onCycleTheme: () -> Unit,
     onSignOut: () -> Unit,
     onUploadBookClick: () -> Unit,
@@ -66,9 +75,10 @@ fun HomeDashboardScreen(
     val upcomingExams = remember(tasks) {
         tasks.filter { !it.completed && it.taskType == "EXAM" }.sortedBy { it.dueDateMillis }
     }
-    val weakTopics = remember(questions) {
+    val chPrefix = stringResource(R.string.qb_chapter_short, 0).substringBefore("0")
+    val weakTopics = remember(questions, chPrefix) {
         questions.filter { !it.hidden && it.incorrectCount > 0 && !it.mistakeResolved }
-            .groupBy { it.topic.ifBlank { "Chapter ${it.chapterNumber}" } }
+            .groupBy { it.topic.ifBlank { "$chPrefix${it.chapterNumber}" } }
             .entries
             .sortedByDescending { it.value.size }
             .take(4)
@@ -95,6 +105,8 @@ fun HomeDashboardScreen(
         listOf("continue", "quick_actions", "revision_queue", "tasks", "exams", "weak_topics", "library")
     } ?: listOf("continue", "quick_actions", "revision_queue", "tasks", "exams", "weak_topics", "library")
 
+    val scholarFallback = stringResource(R.string.home_scholar_fallback)
+
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -111,7 +123,7 @@ fun HomeDashboardScreen(
             ) {
                 Image(
                     painter = painterResource(id = R.drawable.img_hero_study),
-                    contentDescription = "Academic study banner",
+                    contentDescription = stringResource(R.string.cd_study_banner),
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.matchParentSize()
                 )
@@ -135,19 +147,87 @@ fun HomeDashboardScreen(
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "Welcome back, ${profile?.displayName?.ifBlank { "Scholar" } ?: "Scholar"}",
+                                text = stringResource(
+                                    R.string.home_welcome,
+                                    profile?.displayName?.ifBlank { scholarFallback } ?: scholarFallback
+                                ),
                                 style = MaterialTheme.typography.headlineSmall,
                                 color = Color.White,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
                             Text(
-                                text = "${activeBooks.size} textbook(s) • $dueCardsCount flashcards due",
+                                text = stringResource(R.string.home_subtitle_counts, activeBooks.size, dueCardsCount),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = Color(0xFFC9D0E8)
                             )
                         }
-                        Row {
+                        SoraLanguageSwitcher(
+                            currentLanguage = appLanguage,
+                            onLanguageSelected = onSelectLanguage,
+                            onDarkBackdrop = true
+                        )
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        val syncTint = when (syncState.status) {
+                            SyncStatus.SYNCED -> SoraSuccess
+                            SyncStatus.SYNCING -> SoraSoftBlue
+                            SyncStatus.ERROR -> MaterialTheme.colorScheme.error
+                            SyncStatus.OFFLINE_QUEUED, SyncStatus.CONFLICT_RESOLVED -> SoraWarning
+                            SyncStatus.IDLE -> Color.White
+                        }
+                        Surface(
+                            onClick = onOpenSyncCenter,
+                            color = Color.White.copy(alpha = 0.14f),
+                            shape = RoundedCornerShape(16.dp),
+                            modifier = Modifier.heightIn(min = 36.dp).testTag("open_sync_center_button")
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(
+                                    Icons.Rounded.CloudSync,
+                                    contentDescription = stringResource(R.string.cd_cloud_sync),
+                                    tint = syncTint,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Text(
+                                    text = stringResource(R.string.sync_pill_label, syncStatusLabel(syncState)),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Color.White,
+                                    maxLines = 1
+                                )
+                            }
+                        }
+
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            IconButton(
+                                onClick = onOpenAccountSecurity,
+                                modifier = Modifier.testTag("open_account_security_button")
+                            ) {
+                                Icon(
+                                    Icons.Rounded.VerifiedUser,
+                                    contentDescription = stringResource(R.string.cd_account_security),
+                                    tint = Color.White
+                                )
+                            }
+                            IconButton(
+                                onClick = onOpenAiSettings,
+                                modifier = Modifier.testTag("open_ai_settings_button")
+                            ) {
+                                Icon(
+                                    Icons.Rounded.AutoAwesome,
+                                    contentDescription = stringResource(R.string.cd_ai_settings),
+                                    tint = Color.White
+                                )
+                            }
                             IconButton(
                                 onClick = onCycleTheme,
                                 modifier = Modifier.testTag("theme_toggle_button")
@@ -158,7 +238,7 @@ fun HomeDashboardScreen(
                                         SoraThemeMode.LIGHT -> Icons.Rounded.LightMode
                                         SoraThemeMode.SYSTEM -> Icons.Rounded.BrightnessAuto
                                     },
-                                    contentDescription = "Switch theme",
+                                    contentDescription = stringResource(R.string.cd_theme_toggle),
                                     tint = Color.White
                                 )
                             }
@@ -166,13 +246,13 @@ fun HomeDashboardScreen(
                                 onClick = { showCustomizeDialog = true },
                                 modifier = Modifier.testTag("customize_dashboard_button")
                             ) {
-                                Icon(Icons.Rounded.Tune, contentDescription = "Customize dashboard", tint = Color.White)
+                                Icon(Icons.Rounded.Tune, contentDescription = stringResource(R.string.cd_customize_dashboard), tint = Color.White)
                             }
                             IconButton(
                                 onClick = onSignOut,
                                 modifier = Modifier.testTag("sign_out_button")
                             ) {
-                                Icon(Icons.Rounded.Logout, contentDescription = "Sign out", tint = Color.White)
+                                Icon(Icons.Rounded.Logout, contentDescription = stringResource(R.string.cd_sign_out), tint = Color.White)
                             }
                         }
                     }
@@ -184,22 +264,22 @@ fun HomeDashboardScreen(
                     ) {
                         MetricPill(
                             icon = Icons.Rounded.LocalFireDepartment,
-                            value = "${streakDays}d",
-                            label = "Streak",
+                            value = stringResource(R.string.home_streak_days, streakDays),
+                            label = stringResource(R.string.home_metric_streak),
                             tint = SoraWarning,
                             modifier = Modifier.weight(1f)
                         )
                         MetricPill(
                             icon = Icons.Rounded.Schedule,
-                            value = "${weeklyMinutes}m",
-                            label = "Weekly Focus",
+                            value = stringResource(R.string.home_minutes_short, weeklyMinutes),
+                            label = stringResource(R.string.home_metric_weekly_focus),
                             tint = SoraSoftBlue,
                             modifier = Modifier.weight(1f)
                         )
                         MetricPill(
                             icon = Icons.Rounded.Verified,
-                            value = "$overallMastery%",
-                            label = "Mastery",
+                            value = stringResource(R.string.home_percent_value, overallMastery),
+                            label = stringResource(R.string.home_metric_mastery),
                             tint = SoraSuccess,
                             modifier = Modifier.weight(1f)
                         )
@@ -213,16 +293,16 @@ fun HomeDashboardScreen(
             when (sectionKey) {
                 "quick_actions" -> item(key = "sec_quick_actions") {
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        SoraSectionHeader(title = "Quick Actions")
+                        SoraSectionHeader(title = stringResource(R.string.home_quick_actions))
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            item { QuickActionChip("Upload Book", Icons.Rounded.UploadFile, true, "qa_upload", onUploadBookClick) }
-                            item { QuickActionChip("Start Studying", Icons.Rounded.MenuBook, false, "qa_study") { activeBooks.firstOrNull()?.let(onOpenBook) ?: onNavigateTab(1) } }
-                            item { QuickActionChip("Start Quiz", Icons.Rounded.Quiz, false, "qa_quiz", onStartQuickQuiz) }
-                            item { QuickActionChip("Take Exam", Icons.Rounded.Assignment, false, "qa_exam") { onNavigateTab(2) } }
-                            item { QuickActionChip("Flashcards ($dueCardsCount)", Icons.Rounded.Style, false, "qa_flash") { activeBooks.firstOrNull()?.let(onOpenBook) ?: onNavigateTab(1) } }
-                            item { QuickActionChip("Ask AI Tutor", Icons.Rounded.Psychology, false, "qa_tutor") { activeBooks.firstOrNull()?.let(onOpenBook) ?: onNavigateTab(1) } }
-                            item { QuickActionChip("Focus Timer", Icons.Rounded.Timer, false, "qa_focus", onStartFocus) }
-                            item { QuickActionChip("Toolbox", Icons.Rounded.Calculate, false, "qa_tools") { onNavigateTab(4) } }
+                            item { QuickActionChip(stringResource(R.string.qa_upload_book), Icons.Rounded.UploadFile, true, "qa_upload", onUploadBookClick) }
+                            item { QuickActionChip(stringResource(R.string.qa_start_studying), Icons.Rounded.MenuBook, false, "qa_study") { activeBooks.firstOrNull()?.let(onOpenBook) ?: onNavigateTab(1) } }
+                            item { QuickActionChip(stringResource(R.string.qa_start_quiz), Icons.Rounded.Quiz, false, "qa_quiz", onStartQuickQuiz) }
+                            item { QuickActionChip(stringResource(R.string.qa_take_exam), Icons.Rounded.Assignment, false, "qa_exam") { onNavigateTab(2) } }
+                            item { QuickActionChip(stringResource(R.string.qa_flashcards, dueCardsCount), Icons.Rounded.Style, false, "qa_flash") { activeBooks.firstOrNull()?.let(onOpenBook) ?: onNavigateTab(1) } }
+                            item { QuickActionChip(stringResource(R.string.qa_ask_tutor), Icons.Rounded.Psychology, false, "qa_tutor") { activeBooks.firstOrNull()?.let(onOpenBook) ?: onNavigateTab(1) } }
+                            item { QuickActionChip(stringResource(R.string.qa_focus_timer), Icons.Rounded.Timer, false, "qa_focus", onStartFocus) }
+                            item { QuickActionChip(stringResource(R.string.qa_toolbox), Icons.Rounded.Calculate, false, "qa_tools") { onNavigateTab(4) } }
                         }
                     }
                 }
@@ -230,17 +310,17 @@ fun HomeDashboardScreen(
                 "continue" -> item(key = "sec_continue") {
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         SoraSectionHeader(
-                            title = "Continue Studying",
-                            actionLabel = "Library",
+                            title = stringResource(R.string.home_continue_studying),
+                            actionLabel = stringResource(R.string.home_library_action),
                             onAction = { onNavigateTab(1) }
                         )
                         val latestBook = activeBooks.firstOrNull()
                         if (latestBook == null) {
                             SoraEmptyState(
                                 icon = Icons.Rounded.LibraryBooks,
-                                title = "Your Academic Library is Ready",
-                                subtitle = "Upload a PDF, scanned textbook, DOCX, PPTX, or lecture image to generate your personalized study workspace.",
-                                actionLabel = "Upload Textbook",
+                                title = stringResource(R.string.home_empty_title),
+                                subtitle = stringResource(R.string.home_empty_subtitle),
+                                actionLabel = stringResource(R.string.home_upload_textbook),
                                 onAction = onUploadBookClick
                             )
                         } else {
@@ -257,7 +337,12 @@ fun HomeDashboardScreen(
                                     Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                         Text(latestBook.title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                         Text(
-                                            "${latestBook.subjectName} • Page ${latestBook.currentPage} of ${latestBook.totalPages.coerceAtLeast(1)}",
+                                            stringResource(
+                                                R.string.home_page_progress,
+                                                localizedSubjectName(latestBook.subjectName),
+                                                latestBook.currentPage,
+                                                latestBook.totalPages.coerceAtLeast(1)
+                                            ),
                                             style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
@@ -268,7 +353,11 @@ fun HomeDashboardScreen(
                                             modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp))
                                         )
                                     }
-                                    Icon(Icons.Rounded.ArrowForward, contentDescription = "Open workspace", tint = MaterialTheme.colorScheme.primary)
+                                    Icon(
+                                        Icons.AutoMirrored.Rounded.ArrowForward,
+                                        contentDescription = stringResource(R.string.cd_open_workspace),
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
                                 }
                             }
                         }
@@ -278,13 +367,13 @@ fun HomeDashboardScreen(
                 "revision_queue" -> item(key = "sec_revision_queue") {
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         SoraSectionHeader(
-                            title = "Smart Revision Queue",
-                            subtitle = "Prioritized by mistakes, forgetting curve & exam dates"
+                            title = stringResource(R.string.home_revision_queue),
+                            subtitle = stringResource(R.string.home_revision_subtitle)
                         )
                         if (revisionQueue.isEmpty()) {
                             SoraSurfaceCard(modifier = Modifier.fillMaxWidth()) {
                                 Text(
-                                    "All caught up. Upload a textbook or answer practice questions to populate your intelligent revision queue.",
+                                    stringResource(R.string.home_revision_empty),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -301,7 +390,7 @@ fun HomeDashboardScreen(
                                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                                     ) {
                                         SoraStatusBadge(
-                                            text = "P${item.priorityRank}",
+                                            text = SoraFormatters.ltrIsolate(stringResource(R.string.home_priority_rank, item.priorityRank)),
                                             color = when (item.priorityRank) {
                                                 1 -> MaterialTheme.colorScheme.error
                                                 2 -> SoraWarning
@@ -313,7 +402,7 @@ fun HomeDashboardScreen(
                                             Text(item.subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                             Text(item.reason, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
                                         }
-                                        Text("${item.estimatedMinutes}m", style = MaterialTheme.typography.labelSmall)
+                                        Text(stringResource(R.string.home_minutes_short, item.estimatedMinutes), style = MaterialTheme.typography.labelSmall)
                                     }
                                 }
                             }
@@ -324,14 +413,14 @@ fun HomeDashboardScreen(
                 "tasks" -> item(key = "sec_tasks") {
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         SoraSectionHeader(
-                            title = "Tasks Due Today",
-                            actionLabel = "Planner",
+                            title = stringResource(R.string.home_tasks_today),
+                            actionLabel = stringResource(R.string.home_planner_action),
                             onAction = { onNavigateTab(3) }
                         )
                         if (todayTasks.isEmpty()) {
                             SoraSurfaceCard(modifier = Modifier.fillMaxWidth()) {
                                 Text(
-                                    "No urgent tasks due today. Plan your next study block in Planner.",
+                                    stringResource(R.string.home_tasks_empty),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -349,9 +438,13 @@ fun HomeDashboardScreen(
                                         )
                                         Column(modifier = Modifier.weight(1f)) {
                                             Text(task.title, style = MaterialTheme.typography.titleSmall)
-                                            Text("${task.subjectName} • ${task.estimatedMinutes}m • ${task.priority}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            Text(
+                                                "${localizedSubjectName(task.subjectName)} • ${stringResource(R.string.home_minutes_short, task.estimatedMinutes)} • ${localizedPriority(task.priority)}",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
                                         }
-                                        SoraStatusBadge(task.taskType, SoraViolet)
+                                        SoraStatusBadge(localizedTaskType(task.taskType), SoraViolet)
                                     }
                                 }
                             }
@@ -363,19 +456,23 @@ fun HomeDashboardScreen(
                     item(key = "sec_exams") {
                         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             SoraSectionHeader(
-                                title = "Upcoming Exams & Recent Scores",
-                                actionLabel = "Exams",
+                                title = stringResource(R.string.home_upcoming_exams),
+                                actionLabel = stringResource(R.string.home_exams_action),
                                 onAction = { onNavigateTab(2) }
                             )
                             upcomingExams.take(2).forEach { ex ->
                                 val days = ((ex.dueDateMillis - System.currentTimeMillis()) / 86_400_000L).coerceAtLeast(0L)
                                 SoraSurfaceCard(modifier = Modifier.fillMaxWidth(), accentBorder = SoraWarning) {
                                     Row(horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                                        Column {
+                                        Column(modifier = Modifier.weight(1f)) {
                                             Text(ex.title, style = MaterialTheme.typography.titleSmall)
-                                            Text(SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()).format(Date(ex.dueDateMillis)), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            Text(
+                                                SoraFormatters.formatDate(ex.dueDateMillis, appLanguage),
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
                                         }
-                                        SoraStatusBadge("${days}d left", SoraWarning, Icons.Rounded.Event)
+                                        SoraStatusBadge(stringResource(R.string.home_days_left, days), SoraWarning, Icons.Rounded.Event)
                                     }
                                 }
                             }
@@ -384,9 +481,17 @@ fun HomeDashboardScreen(
                                     Row(horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                                         Column(modifier = Modifier.weight(1f)) {
                                             Text(rec.title, style = MaterialTheme.typography.titleSmall)
-                                            Text("${rec.correctCount} correct • ${rec.incorrectCount} missed", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            Text(
+                                                stringResource(R.string.home_exam_score_line, rec.correctCount, rec.incorrectCount),
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
                                         }
-                                        Text("${rec.percentage.toInt()}%", style = MaterialTheme.typography.titleMedium, color = SoraSuccess)
+                                        Text(
+                                            stringResource(R.string.home_percent_value, rec.percentage.toInt()),
+                                            style = MaterialTheme.typography.titleMedium,
+                                            color = SoraSuccess
+                                        )
                                     }
                                 }
                             }
@@ -397,7 +502,7 @@ fun HomeDashboardScreen(
                 "weak_topics" -> if (weakTopics.isNotEmpty()) {
                     item(key = "sec_weak_topics") {
                         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            SoraSectionHeader(title = "Weak Topics Needing Attention")
+                            SoraSectionHeader(title = stringResource(R.string.home_weak_topics))
                             SoraSurfaceCard(modifier = Modifier.fillMaxWidth()) {
                                 SoraBarChart(
                                     entries = weakTopics.map { (topic, list) -> topic to (list.size * 10f).coerceAtMost(100f) },
@@ -412,7 +517,11 @@ fun HomeDashboardScreen(
                 "library" -> if (activeBooks.isNotEmpty()) {
                     item(key = "sec_library") {
                         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            SoraSectionHeader(title = "Recent Textbooks", actionLabel = "All (${activeBooks.size})", onAction = { onNavigateTab(1) })
+                            SoraSectionHeader(
+                                title = stringResource(R.string.home_recent_books),
+                                actionLabel = stringResource(R.string.home_all_count, activeBooks.size),
+                                onAction = { onNavigateTab(1) }
+                            )
                             LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                 items(activeBooks.take(5), key = { it.id }) { book ->
                                     SoraSurfaceCard(
@@ -421,11 +530,11 @@ fun HomeDashboardScreen(
                                     ) {
                                         Text(book.title, style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
                                         Spacer(Modifier.height(4.dp))
-                                        Text(book.subjectName, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                                        Text(localizedSubjectName(book.subjectName), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
                                         Spacer(Modifier.height(8.dp))
                                         Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                                            Text("${book.totalPages}p", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                            Text("${book.masteryScore}% mastery", style = MaterialTheme.typography.labelSmall, color = SoraSuccess)
+                                            Text(stringResource(R.string.home_pages_short, book.totalPages), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            Text(stringResource(R.string.home_mastery_badge, book.masteryScore), style = MaterialTheme.typography.labelSmall, color = SoraSuccess)
                                         }
                                     }
                                 }
@@ -508,19 +617,19 @@ private fun CustomizeDashboardDialog(
     onSave: (List<String>) -> Unit
 ) {
     val allLabels = mapOf(
-        "continue" to "Continue Studying",
-        "quick_actions" to "Quick Actions",
-        "revision_queue" to "Smart Revision Queue",
-        "tasks" to "Tasks Due Today",
-        "exams" to "Upcoming Exams & Scores",
-        "weak_topics" to "Weak Topics",
-        "library" to "Recent Textbooks"
+        "continue" to stringResource(R.string.sec_continue),
+        "quick_actions" to stringResource(R.string.sec_quick_actions),
+        "revision_queue" to stringResource(R.string.sec_revision_queue),
+        "tasks" to stringResource(R.string.sec_tasks),
+        "exams" to stringResource(R.string.sec_exams),
+        "weak_topics" to stringResource(R.string.sec_weak_topics),
+        "library" to stringResource(R.string.sec_library)
     )
     var selected by remember { mutableStateOf(current.toMutableList()) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Customize Dashboard") },
+        title = { Text(stringResource(R.string.home_customize_title)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 allLabels.forEach { (key, label) ->
@@ -549,11 +658,11 @@ private fun CustomizeDashboardDialog(
         },
         confirmButton = {
             Button(onClick = { onSave(selected.ifEmpty { listOf("continue", "quick_actions") }) }) {
-                Text("Save Layout")
+                Text(stringResource(R.string.home_save_layout))
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
         }
     )
 }

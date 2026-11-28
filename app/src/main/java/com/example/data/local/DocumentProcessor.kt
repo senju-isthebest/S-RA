@@ -11,10 +11,13 @@ import android.os.ParcelFileDescriptor
 import android.provider.OpenableColumns
 import android.util.Log
 import android.util.Xml
+import com.example.core.InputValidator
 import com.example.data.ai.SoraAiService
 import com.example.data.model.BookPageContent
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
+import kotlin.coroutines.coroutineContext
 import org.json.JSONArray
 import org.json.JSONObject
 import org.xmlpull.v1.XmlPullParser
@@ -41,11 +44,31 @@ class DocumentProcessor(
     private val context: Context,
     private val aiService: SoraAiService
 ) {
-    private fun bookDir(localBookId: String): File =
-        File(context.filesDir, "books/$localBookId").apply { mkdirs() }
+    private fun bookDir(localBookId: String): File {
+        val safeId = InputValidator.sanitizeFileName(localBookId, "book_default")
+        return File(context.filesDir, "books/$safeId").apply { mkdirs() }
+    }
 
-    fun getLocalFile(localBookId: String, fileName: String): File =
-        File(bookDir(localBookId), fileName)
+    fun getLocalFile(localBookId: String, fileName: String): File {
+        val safeName = InputValidator.sanitizeFileName(fileName, "document.bin")
+        val dir = bookDir(localBookId)
+        val candidate = File(dir, safeName)
+        val canonicalDir = dir.canonicalFile
+        val canonicalFile = candidate.canonicalFile
+        require(canonicalFile.path.startsWith(canonicalDir.path)) { "Invalid local file path" }
+        return candidate
+    }
+
+    fun deleteBookCache(localBookId: String): Boolean {
+        val safeId = InputValidator.sanitizeFileName(localBookId, "book_default")
+        val dir = File(context.filesDir, "books/$safeId")
+        return if (dir.exists()) dir.deleteRecursively() else true
+    }
+
+    fun clearAllBooksCache(): Boolean {
+        val root = File(context.filesDir, "books")
+        return if (root.exists()) root.deleteRecursively() else true
+    }
 
     fun savePages(localBookId: String, pages: List<BookPageContent>) {
         val arr = JSONArray()
@@ -126,7 +149,8 @@ class DocumentProcessor(
         localBookId: String,
         onProgress: (processed: Int, total: Int, statusLabel: String) -> Unit
     ): IngestionResult = withContext(Dispatchers.IO) {
-        val resolvedName = queryFileName(uri) ?: "study_material"
+        val rawName = queryFileName(uri) ?: "study_material"
+        val resolvedName = InputValidator.sanitizeFileName(rawName, "study_material")
         val lower = resolvedName.lowercase()
         val mime = context.contentResolver.getType(uri)?.lowercase().orEmpty()
         val sourceType = when {
@@ -223,6 +247,7 @@ class DocumentProcessor(
         val total = failedPageNumbers.size.coerceAtLeast(1)
 
         failedPageNumbers.forEachIndexed { idx, pageNum ->
+            coroutineContext.ensureActive()
             onProgress(idx + 1, total, "Retrying OCR on page $pageNum...")
             val bitmap = if (sourceType == "PDF") {
                 renderPdfPageBitmap(localBookId, fileName, pageNum - 1, maxWidth = 1280)
@@ -233,7 +258,11 @@ class DocumentProcessor(
             if (bitmap == null) {
                 newlyFailed.add(pageNum)
             } else {
-                val ocrResult = aiService.extractTextFromPageImage(bitmap, pageNum)
+                val ocrResult = try {
+                    aiService.extractTextFromPageImage(bitmap, pageNum)
+                } finally {
+                    bitmap.recycle()
+                }
                 if (ocrResult.isSuccess) {
                     val extracted = ocrResult.getOrNull().orEmpty()
                     val existingIdx = currentPages.indexOfFirst { it.pageNumber == pageNum }
@@ -305,21 +334,25 @@ class DocumentProcessor(
         val failed = mutableListOf<Int>()
 
         for (i in 0 until pageCount) {
+            coroutineContext.ensureActive()
             val pageNum = i + 1
             val heuristicText = rawPdfExtracted.getOrNull(i).orEmpty().trim()
             if (heuristicText.length >= 120) {
                 onProgress(pageNum, pageCount, "Extracted text from page $pageNum / $pageCount")
                 pages.add(BookPageContent(pageNum, heuristicText, "PDF_TEXT"))
             } else {
-                // Scanned or image-heavy page: run Gemini multimodal OCR on rendered page bitmap
+                // Scanned or image-heavy page: run multimodal OCR on rendered page bitmap
                 onProgress(pageNum, pageCount, "Running AI OCR on page $pageNum / $pageCount")
                 val bmp = renderPdfPageBitmap(localBookId, fileName, i, maxWidth = 1280)
                 if (bmp == null) {
                     failed.add(pageNum)
                     pages.add(BookPageContent(pageNum, heuristicText, "FAILED", "Could not render page"))
                 } else {
-                    val ocr = aiService.extractTextFromPageImage(bmp, pageNum)
-                    bmp.recycle()
+                    val ocr = try {
+                        aiService.extractTextFromPageImage(bmp, pageNum)
+                    } finally {
+                        bmp.recycle()
+                    }
                     if (ocr.isSuccess && !ocr.getOrNull().isNullOrBlank()) {
                         pages.add(BookPageContent(pageNum, ocr.getOrThrow(), "GEMINI_OCR"))
                     } else if (heuristicText.isNotBlank()) {

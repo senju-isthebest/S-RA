@@ -15,8 +15,12 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.example.R
+import com.example.core.LocalAppLanguage
+import com.example.core.SoraFormatters
 import com.example.core.SoraSettings
 import com.example.data.model.*
 import com.example.ui.FocusTimerState
@@ -26,9 +30,6 @@ import com.example.ui.theme.SoraSoftBlue
 import com.example.ui.theme.SoraSuccess
 import com.example.ui.theme.SoraViolet
 import com.example.ui.theme.SoraWarning
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 @Composable
 fun PlannerFocusScreen(
@@ -45,8 +46,8 @@ fun PlannerFocusScreen(
 
     Column(modifier = Modifier.fillMaxSize()) {
         TabRow(selectedTabIndex = subTab) {
-            Tab(selected = subTab == 0, onClick = { subTab = 0 }, text = { Text("Study Planner") })
-            Tab(selected = subTab == 1, onClick = { subTab = 1 }, text = { Text("Focus Studio") })
+            Tab(selected = subTab == 0, onClick = { subTab = 0 }, text = { Text(stringResource(R.string.planner_tab_planner)) })
+            Tab(selected = subTab == 1, onClick = { subTab = 1 }, text = { Text(stringResource(R.string.planner_tab_focus)) })
         }
 
         if (subTab == 0) {
@@ -75,6 +76,7 @@ private fun StudyPlannerTab(
     revisionQueue: List<SmartRevisionItem>,
     viewModel: SoraViewModel
 ) {
+    val appLanguage = LocalAppLanguage.current
     var timeWindow by remember { mutableStateOf("WEEK") } // TODAY, WEEK, MONTH, ALL
     var dailyCapacityMins by remember { mutableIntStateOf(90) }
     var showAddTaskDialog by remember { mutableStateOf(false) }
@@ -94,6 +96,13 @@ private fun StudyPlannerTab(
             .sortedBy { it.dueDateMillis }
     }
 
+    val windowChips = listOf(
+        "TODAY" to stringResource(R.string.planner_win_daily),
+        "WEEK" to stringResource(R.string.planner_win_weekly),
+        "MONTH" to stringResource(R.string.planner_win_monthly),
+        "ALL" to stringResource(R.string.planner_win_all)
+    )
+
     LazyColumn(
         modifier = Modifier.fillMaxSize().testTag("planner_list"),
         contentPadding = PaddingValues(16.dp),
@@ -101,14 +110,18 @@ private fun StudyPlannerTab(
     ) {
         item {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Column {
-                    Text("Academic Planner", style = MaterialTheme.typography.headlineSmall)
-                    Text("${tasks.count { !it.completed }} pending • ${tasks.count { it.completed }} done", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(stringResource(R.string.planner_title), style = MaterialTheme.typography.headlineSmall)
+                    Text(
+                        stringResource(R.string.planner_counts, tasks.count { !it.completed }, tasks.count { it.completed }),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
                 Button(onClick = { showAddTaskDialog = true }, modifier = Modifier.testTag("add_task_button")) {
                     Icon(Icons.Rounded.Add, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(Modifier.width(4.dp))
-                    Text("Task")
+                    Text(stringResource(R.string.planner_task_btn))
                 }
             }
         }
@@ -116,8 +129,8 @@ private fun StudyPlannerTab(
         item {
             SoraSurfaceCard(accentBorder = SoraViolet, modifier = Modifier.fillMaxWidth()) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Adaptive Plan & Missed Session Recovery", style = MaterialTheme.typography.titleSmall)
-                    Text("Daily study capacity: $dailyCapacityMins min/day", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(stringResource(R.string.planner_adaptive_title), style = MaterialTheme.typography.titleSmall)
+                    Text(stringResource(R.string.planner_capacity, dailyCapacityMins), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Slider(
                         value = dailyCapacityMins.toFloat(),
                         onValueChange = { dailyCapacityMins = it.toInt() },
@@ -129,7 +142,7 @@ private fun StudyPlannerTab(
                     ) {
                         Icon(Icons.Rounded.AutoFixHigh, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(6.dp))
-                        Text("Reorganize Missed & Balance Queue")
+                        Text(stringResource(R.string.planner_reorganize_btn))
                     }
                 }
             }
@@ -137,16 +150,16 @@ private fun StudyPlannerTab(
 
         if (examCountdowns.isNotEmpty()) {
             item {
-                SoraSectionHeader(title = "Exam Countdowns")
+                SoraSectionHeader(title = stringResource(R.string.planner_exam_countdowns))
                 Spacer(Modifier.height(6.dp))
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     items(examCountdowns, key = { it.id }) { ex ->
                         val daysLeft = ((ex.dueDateMillis - now) / 86_400_000L).coerceAtLeast(0L)
                         SoraSurfaceCard(accentBorder = SoraWarning, modifier = Modifier.width(210.dp)) {
-                            SoraStatusBadge("${daysLeft}d left", SoraWarning, Icons.Rounded.Event)
+                            SoraStatusBadge(stringResource(R.string.home_days_left, daysLeft), SoraWarning, Icons.Rounded.Event)
                             Spacer(Modifier.height(6.dp))
                             Text(ex.title, style = MaterialTheme.typography.titleSmall, maxLines = 1)
-                            Text(ex.subjectName, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(localizedSubjectName(ex.subjectName), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }
@@ -155,7 +168,7 @@ private fun StudyPlannerTab(
 
         item {
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(listOf("TODAY" to "Daily", "WEEK" to "Weekly", "MONTH" to "Monthly", "ALL" to "All")) { (k, label) ->
+                items(windowChips) { (k, label) ->
                     FilterChip(selected = timeWindow == k, onClick = { timeWindow = k }, label = { Text(label) })
                 }
             }
@@ -167,7 +180,7 @@ private fun StudyPlannerTab(
                 SoraSurfaceCard(accentBorder = SoraSoftBlue, modifier = Modifier.fillMaxWidth()) {
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("Suggested Revision: ${top.title}", style = MaterialTheme.typography.titleSmall)
+                            Text(stringResource(R.string.planner_suggested_rev, top.title), style = MaterialTheme.typography.titleSmall)
                             Text(top.reason, style = MaterialTheme.typography.labelSmall, color = SoraSoftBlue)
                         }
                         TextButton(onClick = {
@@ -182,7 +195,7 @@ private fun StudyPlannerTab(
                                 bookId = top.bookId,
                                 chapterNumber = top.chapterNumber
                             )
-                        }) { Text("Schedule") }
+                        }) { Text(stringResource(R.string.action_schedule)) }
                     }
                 }
             }
@@ -192,14 +205,14 @@ private fun StudyPlannerTab(
             item {
                 SoraEmptyState(
                     Icons.Rounded.EventAvailable,
-                    "No Tasks in This View",
-                    "Add study blocks, homework, projects, or exam dates to build your personalized study schedule."
+                    stringResource(R.string.planner_empty_title),
+                    stringResource(R.string.planner_empty_sub)
                 )
             }
         } else {
             items(filteredTasks, key = { it.id }) { task ->
-                val dateFmt = remember(task.dueDateMillis) {
-                    SimpleDateFormat("MMM dd, HH:mm", Locale.getDefault()).format(Date(task.dueDateMillis))
+                val dateFmt = remember(task.dueDateMillis, appLanguage) {
+                    SoraFormatters.formatDateTime(task.dueDateMillis, appLanguage)
                 }
                 SoraSurfaceCard(modifier = Modifier.fillMaxWidth()) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -209,11 +222,15 @@ private fun StudyPlannerTab(
                         )
                         Column(modifier = Modifier.weight(1f)) {
                             Text(task.title, style = MaterialTheme.typography.titleSmall)
-                            Text("${task.subjectName} • $dateFmt • ${task.estimatedMinutes}m • ${task.priority}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(
+                                "${localizedSubjectName(task.subjectName)} • $dateFmt • ${stringResource(R.string.home_minutes_short, task.estimatedMinutes)} • ${localizedPriority(task.priority)}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
-                        SoraStatusBadge(task.taskType, if (task.taskType == "EXAM") SoraWarning else SoraViolet)
+                        SoraStatusBadge(localizedTaskType(task.taskType), if (task.taskType == "EXAM") SoraWarning else SoraViolet)
                         IconButton(onClick = { viewModel.deletePlannerTask(task.id) }) {
-                            Icon(Icons.Rounded.DeleteOutline, contentDescription = "Delete task", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Icon(Icons.Rounded.DeleteOutline, contentDescription = stringResource(R.string.cd_delete_task), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }
@@ -222,9 +239,10 @@ private fun StudyPlannerTab(
     }
 
     if (showAddTaskDialog) {
+        val defaultSubject = stringResource(R.string.label_general)
         var title by remember { mutableStateOf("") }
         var taskType by remember { mutableStateOf("STUDY") }
-        var subject by remember { mutableStateOf(books.firstOrNull()?.subjectName ?: "General") }
+        var subject by remember { mutableStateOf(books.firstOrNull()?.subjectName ?: defaultSubject) }
         var daysAhead by remember { mutableIntStateOf(1) }
         var estMins by remember { mutableIntStateOf(45) }
         var priority by remember { mutableStateOf("MEDIUM") }
@@ -232,27 +250,27 @@ private fun StudyPlannerTab(
 
         AlertDialog(
             onDismissRequest = { showAddTaskDialog = false },
-            title = { Text("New Study Task / Exam") },
+            title = { Text(stringResource(R.string.planner_new_task_title)) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("Title") }, singleLine = true)
-                    OutlinedTextField(value = subject, onValueChange = { subject = it }, label = { Text("Subject") }, singleLine = true)
+                    OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text(stringResource(R.string.library_title_label)) }, singleLine = true)
+                    OutlinedTextField(value = subject, onValueChange = { subject = it }, label = { Text(stringResource(R.string.upload_subject)) }, singleLine = true)
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         items(listOf("STUDY", "HOMEWORK", "ASSIGNMENT", "PROJECT", "EXAM", "REVISION")) { t ->
-                            FilterChip(selected = taskType == t, onClick = { taskType = t }, label = { Text(t) })
+                            FilterChip(selected = taskType == t, onClick = { taskType = t }, label = { Text(localizedTaskType(t)) })
                         }
                     }
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         items(listOf("LOW", "MEDIUM", "HIGH", "URGENT")) { p ->
-                            FilterChip(selected = priority == p, onClick = { priority = p }, label = { Text(p) })
+                            FilterChip(selected = priority == p, onClick = { priority = p }, label = { Text(localizedPriority(p)) })
                         }
                     }
-                    Text("Due in $daysAhead day(s) • Est. $estMins min", style = MaterialTheme.typography.labelMedium)
+                    Text(stringResource(R.string.planner_due_est, daysAhead, estMins), style = MaterialTheme.typography.labelMedium)
                     Slider(value = daysAhead.toFloat(), onValueChange = { daysAhead = it.toInt() }, valueRange = 0f..30f)
                     Slider(value = estMins.toFloat(), onValueChange = { estMins = it.toInt() }, valueRange = 15f..180f)
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         items(listOf("NONE", "DAILY", "WEEKLY")) { r ->
-                            FilterChip(selected = recurring == r, onClick = { recurring = r }, label = { Text("Repeat: $r") })
+                            FilterChip(selected = recurring == r, onClick = { recurring = r }, label = { Text(stringResource(R.string.planner_repeat_label, localizedRecurring(r))) })
                         }
                     }
                 }
@@ -269,9 +287,9 @@ private fun StudyPlannerTab(
                         recurring = recurring
                     )
                     showAddTaskDialog = false
-                }, enabled = title.isNotBlank()) { Text("Create") }
+                }, enabled = title.isNotBlank()) { Text(stringResource(R.string.action_create)) }
             },
-            dismissButton = { TextButton(onClick = { showAddTaskDialog = false }) { Text("Cancel") } }
+            dismissButton = { TextButton(onClick = { showAddTaskDialog = false }) { Text(stringResource(R.string.action_cancel)) } }
         )
     }
 }
@@ -302,6 +320,19 @@ private fun FocusStudioTab(
         else -> 0f
     }.coerceIn(0f, 1f)
 
+    val shortBreakLabel = stringResource(R.string.focus_mode_short, settings.pomodoroShortBreakMinutes)
+    val longBreakLabel = stringResource(R.string.focus_mode_long, settings.pomodoroLongBreakMinutes)
+
+    @Composable
+    fun localizedFocusMode(mode: String): String = when (mode) {
+        "POMODORO" -> stringResource(R.string.focus_mode_pomodoro, settings.pomodoroWorkMinutes)
+        "SHORT_BREAK" -> stringResource(R.string.focus_mode_short, settings.pomodoroShortBreakMinutes)
+        "LONG_BREAK" -> stringResource(R.string.focus_mode_long, settings.pomodoroLongBreakMinutes)
+        "CUSTOM" -> stringResource(R.string.focus_mode_deep)
+        "STOPWATCH" -> stringResource(R.string.focus_mode_stopwatch)
+        else -> mode
+    }
+
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
@@ -313,35 +344,35 @@ private fun FocusStudioTab(
                     FilterChip(
                         selected = focusState.mode == "POMODORO",
                         onClick = { viewModel.configureFocusSession("POMODORO", settings.pomodoroWorkMinutes, focusState.subjectName, focusState.bookId, focusState.chapterNumber, goalText) },
-                        label = { Text("Focus ${settings.pomodoroWorkMinutes}m") }
+                        label = { Text(stringResource(R.string.focus_mode_pomodoro, settings.pomodoroWorkMinutes)) }
                     )
                 }
                 item {
                     FilterChip(
                         selected = focusState.mode == "SHORT_BREAK",
-                        onClick = { viewModel.configureFocusSession("SHORT_BREAK", settings.pomodoroShortBreakMinutes, focusState.subjectName, focusState.bookId, focusState.chapterNumber, "Short Break") },
-                        label = { Text("Break ${settings.pomodoroShortBreakMinutes}m") }
+                        onClick = { viewModel.configureFocusSession("SHORT_BREAK", settings.pomodoroShortBreakMinutes, focusState.subjectName, focusState.bookId, focusState.chapterNumber, shortBreakLabel) },
+                        label = { Text(shortBreakLabel) }
                     )
                 }
                 item {
                     FilterChip(
                         selected = focusState.mode == "LONG_BREAK",
-                        onClick = { viewModel.configureFocusSession("LONG_BREAK", settings.pomodoroLongBreakMinutes, focusState.subjectName, focusState.bookId, focusState.chapterNumber, "Long Break") },
-                        label = { Text("Long ${settings.pomodoroLongBreakMinutes}m") }
+                        onClick = { viewModel.configureFocusSession("LONG_BREAK", settings.pomodoroLongBreakMinutes, focusState.subjectName, focusState.bookId, focusState.chapterNumber, longBreakLabel) },
+                        label = { Text(longBreakLabel) }
                     )
                 }
                 item {
                     FilterChip(
                         selected = focusState.mode == "CUSTOM",
                         onClick = { viewModel.configureFocusSession("CUSTOM", 45, focusState.subjectName, focusState.bookId, focusState.chapterNumber, goalText) },
-                        label = { Text("Deep 45m") }
+                        label = { Text(stringResource(R.string.focus_mode_deep)) }
                     )
                 }
                 item {
                     FilterChip(
                         selected = focusState.mode == "STOPWATCH",
                         onClick = { viewModel.configureFocusSession("STOPWATCH", 0, focusState.subjectName, focusState.bookId, focusState.chapterNumber, goalText) },
-                        label = { Text("Stopwatch") }
+                        label = { Text(stringResource(R.string.focus_mode_stopwatch)) }
                     )
                 }
             }
@@ -355,17 +386,17 @@ private fun FocusStudioTab(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                        SoraStatusBadge(focusState.subjectName, SoraSoftBlue)
+                        SoraStatusBadge(localizedSubjectName(focusState.subjectName), SoraSoftBlue)
                         Row {
                             IconButton(onClick = { ambientMode = !ambientMode }) {
                                 Icon(
                                     if (ambientMode) Icons.Rounded.Spa else Icons.Rounded.NotificationsOff,
-                                    contentDescription = "Toggle ambient calm mode",
+                                    contentDescription = stringResource(R.string.cd_toggle_ambient),
                                     tint = if (ambientMode) SoraSuccess else MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                             IconButton(onClick = { showTimerSettings = true }) {
-                                Icon(Icons.Rounded.Settings, contentDescription = "Configure Pomodoro")
+                                Icon(Icons.Rounded.Settings, contentDescription = stringResource(R.string.cd_configure_pomodoro))
                             }
                         }
                     }
@@ -391,12 +422,12 @@ private fun FocusStudioTab(
                         }
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(
-                                text = "%02d:%02d".format(mins, secs),
+                                text = SoraFormatters.ltrIsolate("%02d:%02d".format(mins, secs)),
                                 style = MaterialTheme.typography.displayMedium,
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
-                                text = if (ambientMode) "Calm Deep Focus" else focusState.mode,
+                                text = if (ambientMode) stringResource(R.string.focus_calm_mode) else localizedFocusMode(focusState.mode),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -408,7 +439,7 @@ private fun FocusStudioTab(
                             FilterChip(
                                 selected = focusState.subjectName == subj,
                                 onClick = { viewModel.configureFocusSession(focusState.mode, focusState.targetSeconds / 60, subj, focusState.bookId, focusState.chapterNumber, goalText) },
-                                label = { Text(subj) }
+                                label = { Text(localizedSubjectName(subj)) }
                             )
                         }
                     }
@@ -416,14 +447,14 @@ private fun FocusStudioTab(
                     OutlinedTextField(
                         value = goalText,
                         onValueChange = { goalText = it },
-                        label = { Text("Session Goal (e.g. Finish Ch. 3 exercises)") },
+                        label = { Text(stringResource(R.string.focus_goal_label)) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
                     OutlinedTextField(
                         value = sessionNotes,
                         onValueChange = { sessionNotes = it },
-                        label = { Text("Session Reflection Notes") },
+                        label = { Text(stringResource(R.string.focus_notes_label)) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -435,7 +466,7 @@ private fun FocusStudioTab(
                         ) {
                             Icon(if (focusState.running) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, contentDescription = null)
                             Spacer(Modifier.width(6.dp))
-                            Text(if (focusState.running) "Pause" else "Start")
+                            Text(if (focusState.running) stringResource(R.string.action_pause) else stringResource(R.string.action_start))
                         }
                         OutlinedButton(
                             onClick = { viewModel.completeFocusSession(sessionNotes) },
@@ -444,7 +475,7 @@ private fun FocusStudioTab(
                         ) {
                             Icon(Icons.Rounded.Check, contentDescription = null)
                             Spacer(Modifier.width(4.dp))
-                            Text("Log Session")
+                            Text(stringResource(R.string.focus_log_session))
                         }
                     }
                 }
@@ -452,27 +483,27 @@ private fun FocusStudioTab(
         }
 
         if (focusSessions.isNotEmpty()) {
-            val bySubject = focusSessions.groupBy { it.subjectName }
-                .map { (subj, list) -> subj to list.sumOf { it.durationMinutes }.toFloat() }
-            val maxVal = bySubject.maxOfOrNull { it.second }?.coerceAtLeast(30f) ?: 60f
             item {
+                val bySubject = focusSessions.groupBy { it.subjectName }
+                    .map { (subj, list) -> localizedSubjectName(subj) to list.sumOf { it.durationMinutes }.toFloat() }
+                val maxVal = bySubject.maxOfOrNull { it.second }?.coerceAtLeast(30f) ?: 60f
                 SoraSurfaceCard(modifier = Modifier.fillMaxWidth()) {
-                    Text("Focus Minutes by Subject", style = MaterialTheme.typography.titleSmall)
+                    Text(stringResource(R.string.focus_chart_title), style = MaterialTheme.typography.titleSmall)
                     Spacer(Modifier.height(8.dp))
                     SoraBarChart(entries = bySubject, maxValue = maxVal, barColor = SoraSoftBlue)
                 }
             }
-            item { SoraSectionHeader(title = "Recent Focus Sessions") }
+            item { SoraSectionHeader(title = stringResource(R.string.focus_recent_title)) }
             items(focusSessions.take(8), key = { it.id }) { s ->
                 SoraSurfaceCard(modifier = Modifier.fillMaxWidth()) {
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("${s.subjectName} (${s.mode})", style = MaterialTheme.typography.titleSmall)
+                            Text("${localizedSubjectName(s.subjectName)} (${localizedFocusMode(s.mode)})", style = MaterialTheme.typography.titleSmall)
                             if (s.goalText.isNotBlank() || s.notes.isNotBlank()) {
                                 Text(s.goalText.ifBlank { s.notes }, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
-                        SoraStatusBadge("${s.durationMinutes}m", SoraSuccess)
+                        SoraStatusBadge(stringResource(R.string.home_minutes_short, s.durationMinutes), SoraSuccess)
                     }
                 }
             }
@@ -485,14 +516,14 @@ private fun FocusStudioTab(
         var lb by remember { mutableIntStateOf(settings.pomodoroLongBreakMinutes) }
         AlertDialog(
             onDismissRequest = { showTimerSettings = false },
-            title = { Text("Pomodoro Intervals") },
+            title = { Text(stringResource(R.string.focus_settings_title)) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Focus: $work min")
+                    Text(stringResource(R.string.focus_slider_work, work))
                     Slider(value = work.toFloat(), onValueChange = { work = it.toInt() }, valueRange = 15f..60f)
-                    Text("Short Break: $sb min")
+                    Text(stringResource(R.string.focus_slider_short, sb))
                     Slider(value = sb.toFloat(), onValueChange = { sb = it.toInt() }, valueRange = 3f..15f)
-                    Text("Long Break: $lb min")
+                    Text(stringResource(R.string.focus_slider_long, lb))
                     Slider(value = lb.toFloat(), onValueChange = { lb = it.toInt() }, valueRange = 10f..30f)
                 }
             },
@@ -500,9 +531,9 @@ private fun FocusStudioTab(
                 Button(onClick = {
                     viewModel.updatePomodoroSettings(work, sb, lb)
                     showTimerSettings = false
-                }) { Text("Save") }
+                }) { Text(stringResource(R.string.action_save)) }
             },
-            dismissButton = { TextButton(onClick = { showTimerSettings = false }) { Text("Cancel") } }
+            dismissButton = { TextButton(onClick = { showTimerSettings = false }) { Text(stringResource(R.string.action_cancel)) } }
         )
     }
 }

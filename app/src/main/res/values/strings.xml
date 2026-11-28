@@ -1,3 +1,885 @@
 <resources>
     <string name="app_name">SŌRA</string>
+
+    <!-- Language & Theme -->
+    <string name="lang_short_en">EN</string>
+    <string name="lang_short_ar">عربي</string>
+    <string name="lang_english">English</string>
+    <string name="lang_arabic">العربية</string>
+    <string name="cd_language_switcher">Switch application language</string>
+    <string name="language_label">Language</string>
+    <string name="theme_label">Appearance</string>
+    <string name="theme_dark">Dark</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_system">System</string>
+
+    <!-- Common Actions & Labels -->
+    <string name="action_save">Save</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_close">Close</string>
+    <string name="action_create">Create</string>
+    <string name="action_delete">Delete</string>
+    <string name="action_rename">Rename</string>
+    <string name="action_archive">Archive</string>
+    <string name="action_unarchive">Unarchive</string>
+    <string name="action_generate">Generate</string>
+    <string name="action_refresh">Refresh</string>
+    <string name="action_analyze">Analyze</string>
+    <string name="action_clear">Clear</string>
+    <string name="action_submit">Submit</string>
+    <string name="action_previous">Previous</string>
+    <string name="action_next">Next</string>
+    <string name="action_schedule">Schedule</string>
+    <string name="action_start">Start</string>
+    <string name="action_pause">Pause</string>
+    <string name="action_add">Add</string>
+    <string name="action_upload">Upload</string>
+    <string name="action_print">Print</string>
+    <string name="action_export_pdf">Export PDF</string>
+    <string name="action_test_connection">Test Connection &amp; Discover Models</string>
+    <string name="action_reset_defaults">Reset Defaults</string>
+    <string name="label_general">General</string>
+    <string name="label_general_studies">General Studies</string>
+    <string name="label_all">All</string>
+    <string name="label_fall_semester">Fall 2026</string>
+    <string name="label_core_folder">Core</string>
+    <string name="label_custom_deck">Custom Deck</string>
+
+    <!-- Navigation -->
+    <string name="nav_home">Home</string>
+    <string name="nav_library">Library</string>
+    <string name="nav_exams">Exams</string>
+    <string name="nav_planner">Planner</string>
+    <string name="nav_tools">Tools</string>
+
+    <!-- Auth Screen -->
+    <string name="auth_tagline">Personal Academic Operating System</string>
+    <string name="auth_headline">Transform textbooks into mastery.</string>
+    <string name="auth_subtitle">Upload PDFs, slides, documents, or photos to automatically build chapter summaries, concept maps, question banks, exams, flashcards, and an adaptive revision schedule.</string>
+    <string name="auth_feature_ocr_title">Smart Ingestion &amp; OCR</string>
+    <string name="auth_feature_ocr_sub">PDF, scanned pages, DOCX, PPTX, and images with page citations</string>
+    <string name="auth_feature_tutor_title">11-Mode AI Tutor</string>
+    <string name="auth_feature_tutor_sub">Socratic, Explain, Step-by-Step, Examiner &amp; Ask the Textbook</string>
+    <string name="auth_feature_exams_title">20+ Question Types &amp; Exams</string>
+    <string name="auth_feature_exams_sub">Proctored exam engine, mistake notebook, and SM-2 flashcards</string>
+    <string name="auth_feature_analytics_title">True Mastery Analytics</string>
+    <string name="auth_feature_analytics_sub">Performance-based mastery, smart revision queue, and study planner</string>
+    <string name="auth_sign_in_google">Sign in with Google</string>
+    <string name="auth_signing_in">Signing in...</string>
+    <string name="auth_privacy_note">Your textbooks, notes, exams, and revision progress sync privately to your student workspace.</string>
+    <string name="auth_err_missing_client">Google Sign-In configuration missing: default_web_client_id not found</string>
+    <string name="auth_err_no_activity">Sign-in requires an active screen context.</string>
+    <string name="auth_err_unexpected_cred">Unexpected credential type returned.</string>
+    <string name="auth_err_failed">Sign in failed</string>
+    <string name="cd_sora_hero">SŌRA study sanctuary backdrop</string>
+    <string name="cd_sora_logo">SŌRA logo</string>
+
+    <!-- Home Dashboard -->
+    <string name="home_welcome">Welcome back, %1$s</string>
+    <string name="home_scholar_fallback">Scholar</string>
+    <string name="home_subtitle_counts">%1$d textbook(s) • %2$d flashcards due</string>
+    <string name="home_metric_streak">Streak</string>
+    <string name="home_metric_weekly_focus">Weekly Focus</string>
+    <string name="home_metric_mastery">Mastery</string>
+    <string name="home_streak_days">%1$dd</string>
+    <string name="home_minutes_short">%1$dm</string>
+    <string name="home_percent_value">%1$d%%</string>
+    <string name="home_quick_actions">Quick Actions</string>
+    <string name="qa_upload_book">Upload Book</string>
+    <string name="qa_start_studying">Start Studying</string>
+    <string name="qa_start_quiz">Start Quiz</string>
+    <string name="qa_take_exam">Take Exam</string>
+    <string name="qa_flashcards">Flashcards (%1$d)</string>
+    <string name="qa_ask_tutor">Ask AI Tutor</string>
+    <string name="qa_focus_timer">Focus Timer</string>
+    <string name="qa_toolbox">Toolbox</string>
+    <string name="home_continue_studying">Continue Studying</string>
+    <string name="home_library_action">Library</string>
+    <string name="home_empty_title">Your Academic Library is Ready</string>
+    <string name="home_empty_subtitle">Upload a PDF, scanned textbook, DOCX, PPTX, or lecture image to generate your personalized study workspace.</string>
+    <string name="home_upload_textbook">Upload Textbook</string>
+    <string name="home_page_progress">%1$s • Page %2$d of %3$d</string>
+    <string name="home_revision_queue">Smart Revision Queue</string>
+    <string name="home_revision_subtitle">Prioritized by mistakes, forgetting curve &amp; exam dates</string>
+    <string name="home_revision_empty">All caught up. Upload a textbook or answer practice questions to populate your intelligent revision queue.</string>
+    <string name="home_tasks_today">Tasks Due Today</string>
+    <string name="home_planner_action">Planner</string>
+    <string name="home_tasks_empty">No urgent tasks due today. Plan your next study block in Planner.</string>
+    <string name="home_upcoming_exams">Upcoming Exams &amp; Recent Scores</string>
+    <string name="home_exams_action">Exams</string>
+    <string name="home_days_left">%1$dd left</string>
+    <string name="home_exam_score_line">%1$d correct • %2$d missed</string>
+    <string name="home_weak_topics">Weak Topics Needing Attention</string>
+    <string name="home_recent_books">Recent Textbooks</string>
+    <string name="home_all_count">All (%1$d)</string>
+    <string name="home_pages_short">%1$dp</string>
+    <string name="home_mastery_badge">%1$d%% mastery</string>
+    <string name="home_priority_rank">P%1$d</string>
+    <string name="home_customize_title">Customize Dashboard</string>
+    <string name="home_save_layout">Save Layout</string>
+    <string name="sec_continue">Continue Studying</string>
+    <string name="sec_quick_actions">Quick Actions</string>
+    <string name="sec_revision_queue">Smart Revision Queue</string>
+    <string name="sec_tasks">Tasks Due Today</string>
+    <string name="sec_exams">Upcoming Exams &amp; Scores</string>
+    <string name="sec_weak_topics">Weak Topics</string>
+    <string name="sec_library">Recent Textbooks</string>
+    <string name="cd_theme_toggle">Switch theme</string>
+    <string name="cd_ai_settings">AI &amp; Language Settings</string>
+    <string name="cd_customize_dashboard">Customize dashboard</string>
+    <string name="cd_sign_out">Sign out</string>
+    <string name="cd_open_workspace">Open workspace</string>
+    <string name="cd_study_banner">Academic study banner</string>
+    <string name="quick_quiz_title">Quick 5-Question Quiz</string>
+    <string name="quick_quiz_empty">Upload a textbook first to generate quiz questions.</string>
+
+    <!-- AI & Language Settings Sheet -->
+    <string name="ai_settings_title">AI &amp; Language Settings</string>
+    <string name="ai_settings_subtitle">Configure local Ollama, cloud Gemini, routing fallback, and app language.</string>
+    <string name="ai_routing_strategy">AI Routing Strategy</string>
+    <string name="ai_strategy_gemini_first">Gemini First</string>
+    <string name="ai_strategy_ollama_first">Ollama First</string>
+    <string name="ai_strategy_ollama_only">Ollama Only</string>
+    <string name="ai_strategy_gemini_only">Gemini Only</string>
+    <string name="ai_fallback_title">Automatic Fallback</string>
+    <string name="ai_fallback_subtitle">Switch to secondary provider on rate limits, timeouts, or connection errors.</string>
+    <string name="ai_ollama_section">Local AI (Ollama)</string>
+    <string name="ai_ollama_endpoint_label">Ollama Base URL</string>
+    <string name="ai_ollama_quick_localhost">Device (localhost)</string>
+    <string name="ai_ollama_quick_emulator">Emulator (10.0.2.2)</string>
+    <string name="ai_ollama_device_hint">Use 10.0.2.2:11434 on Android Emulator, or localhost:11434 on a physical device via: adb reverse tcp:11434 tcp:11434. Remote endpoints require HTTPS.</string>
+    <string name="ai_ollama_model_label">Ollama Text Model (default: qwen2.5:3b)</string>
+    <string name="ai_ollama_vision_label">Vision Model Override (optional, e.g. llava)</string>
+    <string name="ai_ollama_discovered_models">Discovered Local Models</string>
+    <string name="ai_gemini_section">Cloud AI (Gemini)</string>
+    <string name="ai_gemini_model_label">Gemini Model</string>
+    <string name="ai_gemini_key_label">Custom Gemini API Key (optional)</string>
+    <string name="ai_gemini_key_hint">Leave blank to use built-in Firebase AI Logic. Keys are stored locally only and excluded from cloud backups.</string>
+    <string name="ai_gemini_test_btn">Test Gemini Connection</string>
+    <string name="ai_timeout_label">Request Timeout: %1$ds</string>
+    <string name="ai_testing_progress">Testing provider connection...</string>
+    <string name="ai_settings_saved">AI settings saved.</string>
+    <string name="ai_key_cleared">Custom API key cleared.</string>
+    <string name="ai_last_provider_badge">Last active: %1$s (%2$s)</string>
+    <string name="cd_toggle_secret">Toggle API key visibility</string>
+
+    <!-- Library & Upload Dialog -->
+    <string name="library_title">Textbook Library</string>
+    <string name="library_counts">%1$d active • %2$d archived</string>
+    <string name="library_subject_btn">Subject</string>
+    <string name="library_upload_btn">Upload</string>
+    <string name="library_search_hint">Search textbooks, subjects, or folders...</string>
+    <string name="library_archived">Archived</string>
+    <string name="library_show_archived">Show Archived</string>
+    <string name="library_empty_archived">No archived textbooks</string>
+    <string name="library_empty_default">No textbooks in this view yet</string>
+    <string name="library_empty_subtitle">Upload a PDF, scanned book, DOCX, PPTX, image, or lecture notes to auto-generate chapters, summaries, flashcards &amp; exams.</string>
+    <string name="library_upload_cta">Upload Study Material</string>
+    <string name="library_new_subject_title">Create Academic Subject</string>
+    <string name="library_subject_name">Subject Name</string>
+    <string name="library_semester">Semester</string>
+    <string name="library_folder">Folder</string>
+    <string name="library_target_grade">Target Grade</string>
+    <string name="library_rename_title">Rename Textbook</string>
+    <string name="library_title_label">Title</string>
+    <string name="library_retry_pages">Retry %1$d page(s)</string>
+    <string name="cd_book_options">Book options</string>
+    <string name="cd_empty_library">Empty library illustration</string>
+
+    <string name="upload_title">Import Study Material</string>
+    <string name="upload_supported_hint">Supported: PDF textbooks, Scanned PDFs (AI OCR), DOCX, PPTX slides, Images, or Pasted Lecture Notes.</string>
+    <string name="upload_title_optional">Title (optional for auto-detect)</string>
+    <string name="upload_subject">Subject</string>
+    <string name="upload_semester">Semester</string>
+    <string name="upload_folder">Folder / Tag</string>
+    <string name="upload_mode_file">File / Image</string>
+    <string name="upload_mode_paste">Paste Notes / Text</string>
+    <string name="upload_paste_label">Paste textbook chapter or lecture notes</string>
+    <string name="upload_analyze_text">Analyze Text</string>
+    <string name="upload_image_ocr">Image OCR</string>
+    <string name="upload_pick_file">Pick File</string>
+    <string name="upload_default_notes_title">Study Notes</string>
+
+    <string name="status_complete">Complete</string>
+    <string name="status_partial">Partial</string>
+    <string name="status_failed">Failed</string>
+    <string name="status_processing">Processing</string>
+
+    <!-- Workspace & Tabs -->
+    <string name="tab_overview">Overview</string>
+    <string name="tab_contents">Contents</string>
+    <string name="tab_read">Read</string>
+    <string name="tab_summaries">Summaries</string>
+    <string name="tab_learn">Learn</string>
+    <string name="tab_question_bank">Question Bank</string>
+    <string name="tab_practice">Practice</string>
+    <string name="tab_exams">Exams</string>
+    <string name="tab_flashcards">Flashcards</string>
+    <string name="tab_notes">Notes</string>
+    <string name="tab_mind_maps">Mind Maps</string>
+    <string name="tab_glossary">Glossary</string>
+    <string name="tab_revision">Revision</string>
+    <string name="tab_analytics">Analytics</string>
+
+    <string name="workspace_subtitle">%1$s • %2$d chapters • %3$d%% mastery</string>
+    <string name="cd_back_library">Back to Library</string>
+    <string name="cd_focus_book">Start focus timer for book</string>
+    <string name="cd_open_tutor">Open AI Tutor</string>
+    <string name="fab_ai_tutor">AI Tutor</string>
+
+    <string name="overview_extracted">%1$s • %2$s • %3$d/%4$d pages extracted</string>
+    <string name="overview_mastery_note">Mastery is computed from your quiz &amp; spaced-repetition accuracy (not passive reading time).</string>
+    <string name="overview_retry_failed">Retry %1$d Failed Page(s)</string>
+    <string name="overview_book_summary">Textbook Overview</string>
+    <string name="overview_formula_sheet">Consolidated Formula Sheet</string>
+    <string name="overview_read_btn">Read (%1$d/%2$d)</string>
+    <string name="overview_questions_btn">Questions (%1$d)</string>
+    <string name="overview_cards_btn">Cards (%1$d)</string>
+    <string name="overview_export_pack">Export Pack</string>
+
+    <string name="contents_empty_title">No Chapters Detected</string>
+    <string name="contents_empty_sub">Re-analyze or paste structured chapters.</string>
+    <string name="contents_chapter_title">Chapter %1$d: %2$s</string>
+    <string name="contents_chapter_meta">Pages %1$d-%2$d • Est. %3$dm • %4$s</string>
+    <string name="contents_read">Read</string>
+
+    <string name="book_exams_title">Generate Exam for %1$s</string>
+    <string name="book_exams_sub">Answers remain locked until submission. Post-exam analytics identify weak chapters.</string>
+    <string name="badge_q_min">%1$d Q • %2$dm</string>
+
+    <string name="book_revision_title">Book Revision Priority</string>
+    <string name="book_revision_summary">1. %1$d unresolved mistake(s)\n2. %2$d due spaced-repetition flashcard(s)\n3. %3$d chapter(s) below 60%% mastery</string>
+    <string name="book_revision_mistakes_btn">Practice Mistakes</string>
+    <string name="book_revision_cards_btn">Review Cards</string>
+
+    <string name="book_analytics_title">Performance Summary — %1$s</string>
+    <string name="book_analytics_acc">Question Accuracy: %1$d%% across %2$d attempted item(s)</string>
+    <string name="book_analytics_formula">How Mastery is Calculated: 70%% Question Accuracy + 30%% Spaced-Repetition Flashcard Recall.</string>
+    <string name="book_analytics_by_ch">Mastery by Chapter</string>
+
+    <!-- Summaries, Learn, MindMaps, Glossary -->
+    <string name="summaries_empty_title">No Chapters Available</string>
+    <string name="summaries_empty_sub">Analyze a textbook first to view AI chapter intelligence.</string>
+    <string name="summary_quick">Quick</string>
+    <string name="summary_detailed">Detailed</string>
+    <string name="summary_bullet">Bullet</string>
+    <string name="summary_exam">Exam Revision</string>
+    <string name="diff_simplified">Simplified</string>
+    <string name="diff_standard">Standard</string>
+    <string name="diff_rigorous">Rigorous</string>
+    <string name="summaries_placeholder">Tap Generate to synthesize AI summaries, concepts, formulas, misconceptions, and glossary for this chapter.</string>
+    <string name="sec_key_concepts">Key Concepts</string>
+    <string name="sec_important_defs">Important Definitions</string>
+    <string name="sec_important_facts">Important Facts</string>
+    <string name="sec_important_dates">Important Dates</string>
+    <string name="sec_formulas">Formulas</string>
+    <string name="sec_examples">Examples</string>
+    <string name="sec_misconceptions">Common Misconceptions</string>
+    <string name="sec_comparisons">Important Comparisons</string>
+    <string name="cd_export_summary">Export summary PDF</string>
+    <string name="cd_print_summary">Print summary</string>
+
+    <string name="learn_empty_title">Select a Chapter</string>
+    <string name="learn_empty_sub">Choose a chapter to access Teach-Back, Knowledge Gaps, and Comparison Tables.</string>
+    <string name="learn_goal_title">Chapter Learning Goal</string>
+    <string name="learn_goal_hint">e.g., Master derivations and score &gt;= 90% on quiz</string>
+    <string name="learn_save_goal">Save Goal</string>
+    <string name="learn_open_tutor">Open 11-Mode Tutor</string>
+    <string name="learn_objectives">Learning Objectives</string>
+    <string name="learn_prerequisites">Prerequisites</string>
+    <string name="learn_comparison_btn">Comparison Table</string>
+    <string name="learn_gaps_btn">Knowledge Gaps</string>
+    <string name="learn_analysis_title">AI Learning Analysis</string>
+    <string name="learn_teachback_title">Teach-Back Mastery Check</string>
+    <string name="learn_teachback_desc">Explain \"%1$s\" in your own words as if teaching a classmate. SŌRA will evaluate accuracy and identify missing concepts.</string>
+    <string name="learn_teachback_label">Your explanation</string>
+    <string name="learn_teachback_eval">Evaluate My Explanation</string>
+    <string name="learn_teachback_score">Teach-Back Score: %1$d%%</string>
+    <string name="learn_accurate_points">Accurate Points:</string>
+    <string name="learn_missing_points">Missing Information:</string>
+    <string name="learn_misconceptions">Misconceptions:</string>
+    <string name="cd_close_feedback">Close feedback</string>
+
+    <string name="mindmap_empty_title">Concept Map Not Generated Yet</string>
+    <string name="mindmap_empty_sub">Open the Summaries tab and tap Generate to build an interactive concept map for this chapter.</string>
+    <string name="mindmap_invalid_title">Invalid Concept Map Data</string>
+    <string name="mindmap_invalid_sub">Regenerate chapter intelligence to rebuild the map.</string>
+    <string name="mindmap_title">Interactive Concept Map</string>
+    <string name="mindmap_subtitle">Expand/collapse branches, jump to source pages, or generate targeted questions from any node.</string>
+    <string name="cd_toggle_branch">Toggle branch</string>
+    <string name="cd_generate_node_q">Generate questions for %1$s</string>
+    <string name="page_ref_short">p.%1$d</string>
+
+    <string name="glossary_search_hint">Search glossary terms...</string>
+    <string name="glossary_alpha">Alphabetical</string>
+    <string name="glossary_by_ch">By Chapter</string>
+    <string name="glossary_empty_title">No Glossary Terms Yet</string>
+    <string name="glossary_empty_sub">Generate chapter intelligence to extract key terminology and simplified explanations.</string>
+    <string name="glossary_simple">Simple: %1$s</string>
+    <string name="glossary_example">Example: %1$s</string>
+    <string name="glossary_related">Related: %1$s</string>
+
+    <!-- Reader -->
+    <string name="reader_page_counter">Page %1$d / %2$d</string>
+    <string name="reader_search_hint">Search inside book...</string>
+    <string name="reader_matches">Matches:</string>
+    <string name="reader_original_page">Original Page</string>
+    <string name="reader_extracted_text">Extracted Text</string>
+    <string name="reader_no_text">No extracted text on this page. Use Original Page view or Retry Failed Pages.</string>
+    <string name="reader_chars_count">%1$d chars</string>
+    <string name="reader_highlights_title">Page %1$d Highlights &amp; Notes</string>
+    <string name="reader_assistant_btn">Reading Assistant</string>
+    <string name="reader_diagram_btn">Ask Diagram / Tutor</string>
+    <string name="reader_insight_title">Reading Assistant Insight</string>
+    <string name="reader_highlight_dialog">Highlight / Page Note (p. %1$d)</string>
+    <string name="reader_highlight_hint">Key quote or personal annotation</string>
+    <string name="reader_also_note">Also save to Study Notebook</string>
+    <string name="reader_assistant_dialog">Reading Assistant (Page %1$d)</string>
+    <string name="cd_prev_page">Previous page</string>
+    <string name="cd_next_page">Next page</string>
+    <string name="cd_bookmark_page">Bookmark page</string>
+    <string name="cd_highlight_note">Highlight or add note</string>
+    <string name="cd_read_aloud">Read page aloud</string>
+    <string name="cd_zoom_out">Zoom out</string>
+    <string name="cd_zoom_in">Zoom in</string>
+    <string name="cd_page_image">Textbook page %1$d</string>
+    <string name="cd_close_insight">Close insight</string>
+    <string name="ra_simplify">Simplify</string>
+    <string name="ra_explain">Explain</string>
+    <string name="ra_definitions">Key Definitions</string>
+    <string name="ra_examples">Worked Examples</string>
+    <string name="ra_translate_ar">Translate to Arabic</string>
+    <string name="ra_translate_en">Translate to English</string>
+    <string name="ra_practice">Practice Questions</string>
+    <string name="ra_summary">Concise Summary</string>
+
+    <!-- Tutor Sheet -->
+    <string name="tutor_title">SŌRA AI Tutor</string>
+    <string name="tutor_subtitle">%1$s • %2$s • Page %3$d</string>
+    <string name="tutor_overview_fallback">Overview</string>
+    <string name="tutor_empty_title">Contextual Academic Assistant</string>
+    <string name="tutor_empty_desc">Ask anything about Page %1$d. Switch modes anytime without losing context. Citations always link back to your source material.</string>
+    <string name="tutor_chip_explain">Explain this page</string>
+    <string name="tutor_chip_explain_prompt">Explain the core concept on this page step by step.</string>
+    <string name="tutor_chip_socratic">Socratic check</string>
+    <string name="tutor_chip_socratic_prompt">Quiz me on this page using Socratic questioning.</string>
+    <string name="tutor_role_you">You (%1$s)</string>
+    <string name="tutor_role_sora">SŌRA Tutor (%1$s)</string>
+    <string name="tutor_streaming">SŌRA Tutor (%1$s) streaming...</string>
+    <string name="tutor_thinking">Thinking...</string>
+    <string name="tutor_vision_toggle">Analyze page diagram / image with Vision</string>
+    <string name="tutor_input_hint">Ask in %1$s mode...</string>
+    <string name="cd_close_tutor">Close AI Tutor</string>
+    <string name="cd_send_tutor">Send to Tutor</string>
+
+    <!-- Question Bank, Practice, Flashcards, Notes -->
+    <string name="qb_count">%1$d Question(s)</string>
+    <string name="qb_filter_all">All</string>
+    <string name="qb_filter_unanswered">Unanswered</string>
+    <string name="qb_filter_mistakes">Mistakes</string>
+    <string name="qb_filter_bookmarked">Bookmarked</string>
+    <string name="qb_filter_weak">Weak</string>
+    <string name="qb_all_chapters">All Ch.</string>
+    <string name="qb_practice_btn">Practice (%1$d)</string>
+    <string name="qb_build_exam_btn">Build Exam</string>
+    <string name="qb_empty_title">No Matching Questions</string>
+    <string name="qb_empty_sub">Tap Generate to create AI-crafted questions grounded in your textbook chapters.</string>
+    <string name="qb_note_prefix">Note: %1$s</string>
+    <string name="qb_show_answer">Show Answer &amp; Explanation</string>
+    <string name="qb_hide_answer">Hide Answer &amp; Explanation</string>
+    <string name="qb_answer_prefix">Answer: %1$s</string>
+    <string name="qb_ai_badge">AI-generated • Linked to Ch.%1$d, p.%2$d</string>
+    <string name="qb_edit_title">Edit Question</string>
+    <string name="qb_question_label">Question</string>
+    <string name="qb_correct_ans_label">Correct Answer</string>
+    <string name="qb_explanation_label">Explanation</string>
+    <string name="qb_note_dialog_title">Question Note &amp; Collection</string>
+    <string name="qb_note_label">Personal study note</string>
+    <string name="qb_collection_label">Collection tag (e.g. Midterm)</string>
+    <string name="qb_report_title">Report Issue in Question</string>
+    <string name="qb_report_hint">Describe inaccuracy or ambiguity</string>
+    <string name="qb_submit_report">Submit Report</string>
+    <string name="qb_generate_title">Generate Questions</string>
+    <string name="qb_chapter_label">Chapter:</string>
+    <string name="qb_types_label">Question Types:</string>
+    <string name="qb_count_label">Count: %1$d questions</string>
+
+    <string name="practice_empty_title">No Practice Questions</string>
+    <string name="practice_empty_sub">Generate questions in the Question Bank tab to start adaptive practice.</string>
+    <string name="practice_progress">Question %1$d / %2$d</string>
+    <string name="practice_diff_badge">Difficulty: %1$s</string>
+    <string name="practice_adaptive">Adaptive</string>
+    <string name="practice_your_answer">Your answer</string>
+    <string name="practice_check_answer">Check Answer</string>
+    <string name="practice_correct_pts">Correct! (+%1$d pts)</string>
+    <string name="practice_incorrect_note">Incorrect — Added to Mistake Notebook</string>
+    <string name="practice_next_q">Next Question</string>
+
+    <string name="fc_due_chip">Due (%1$d)</string>
+    <string name="fc_all_chip">All (%1$d)</string>
+    <string name="fc_new_card">Card</string>
+    <string name="fc_empty_title">No Flashcards Yet</string>
+    <string name="fc_empty_sub">Generate chapter intelligence or add custom flashcards to begin spaced repetition.</string>
+    <string name="fc_card_counter">Card %1$d of %2$d • %3$s</string>
+    <string name="fc_front_badge">FRONT • %1$s</string>
+    <string name="fc_answer_badge">ANSWER • p.%1$d</string>
+    <string name="fc_hint_prefix">Hint: %1$s</string>
+    <string name="fc_tap_flip">Tap card to flip</string>
+    <string name="fc_rate_prompt">Rate recall to schedule SM-2 next review:</string>
+    <string name="fc_hard">Difficult</string>
+    <string name="fc_medium">Medium</string>
+    <string name="fc_easy">Easy</string>
+    <string name="fc_reveal">Reveal Answer</string>
+    <string name="fc_create_title">Create Flashcard</string>
+    <string name="fc_deck_label">Deck Name</string>
+    <string name="fc_front_label">Front (Term / Question)</string>
+    <string name="fc_back_label">Back (Definition / Answer)</string>
+
+    <string name="notes_title">Study Notebook</string>
+    <string name="notes_new_btn">New Note</string>
+    <string name="notes_search_hint">Search notes &amp; tags...</string>
+    <string name="notes_empty_title">No Notes Yet</string>
+    <string name="notes_empty_sub">Write Markdown notes linked to textbook pages and convert them into flashcards anytime.</string>
+    <string name="notes_new_title">New Study Note</string>
+    <string name="notes_edit_title">Edit Note</string>
+    <string name="notes_title_label">Note Title</string>
+    <string name="notes_body_label">Markdown Content (# Heading, - Bullet, Term: Def)</string>
+    <string name="notes_page_label">Page #</string>
+    <string name="notes_tags_label">Tags</string>
+    <string name="notes_quick_note">Quick Note</string>
+
+    <!-- Exams & Practice -->
+    <string name="exams_tab_exams">Exams (%1$d)</string>
+    <string name="exams_tab_practice">Practice (%1$d)</string>
+    <string name="exams_tab_mistakes">Mistakes (%1$d)</string>
+    <string name="exams_builder_title">Custom AI Exam Builder</string>
+    <string name="exams_builder_sub">Answers are locked during exams unless immediate feedback is enabled.</string>
+    <string name="exams_title_optional">Exam Title (optional)</string>
+    <string name="exams_source_books">Source Textbooks:</string>
+    <string name="exams_q_count_avail">Questions: %1$d (available: %2$d)</string>
+    <string name="exams_duration_min">Duration: %1$d min</string>
+    <string name="exams_allow_revisit">Allow revisiting previous questions</string>
+    <string name="exams_show_exp">Show explanation after each item</string>
+    <string name="exams_start_custom">Start Custom Exam</string>
+    <string name="exams_presets_title">Smart Exam Presets</string>
+    <string name="exams_presets_sub">Tap any mode to launch immediately</string>
+    <string name="exams_history_title">Exam History &amp; Results</string>
+    <string name="exams_score_line">%1$d/%2$d pts • %3$d correct • %4$d missed</string>
+    <string name="exams_in_progress_line">In progress • %1$d questions</string>
+    <string name="exams_resume">Resume</string>
+    <string name="exams_custom_default_title">Custom Study Exam</string>
+    <string name="mistakes_empty_title">Mistake Notebook Clear</string>
+    <string name="mistakes_empty_sub">Any questions missed in Practice or Exams appear here automatically for targeted remediation.</string>
+    <string name="mistakes_exam_btn">Mistake Exam</string>
+    <string name="mistakes_practice_btn">Practice Pool</string>
+    <string name="mistakes_missed_x">Missed %1$dx</string>
+    <string name="mistakes_mark_understood">Mark Understood</string>
+
+    <string name="exam_time_left">Time Left: %1$02d:%2$02d • %3$d/%4$d answered</string>
+    <string name="exam_time_left_str">Time Left: %1$s • %2$d/%3$d answered</string>
+    <string name="exam_submit_btn">Submit</string>
+    <string name="exam_empty_title">Exam Questions Unavailable</string>
+    <string name="exam_empty_sub">Return and generate a new exam.</string>
+    <string name="exam_q_badge">Q%1$d • %2$d pts</string>
+    <string name="exam_write_answer">Write your answer</string>
+    <string name="exam_immediate_check">Immediate Check: %1$s</string>
+    <string name="exam_review_submit">Review &amp; Submit</string>
+    <string name="exam_confirm_title">Submit Exam?</string>
+    <string name="exam_confirm_body">Answered: %1$d/%2$d\nFlagged: %3$d\nUnanswered: %4$d\n\nOnce submitted, answers are graded and locked.</string>
+    <string name="exam_submit_now">Submit Now</string>
+    <string name="exam_keep_working">Keep Working</string>
+    <string name="exam_results_title">Exam Results &amp; Analytics</string>
+    <string name="exam_score_summary">Score: %1$d/%2$d pts (%3$d%%)</string>
+    <string name="exam_stats_summary">Correct: %1$d • Missed: %2$d • Blank: %3$d • %4$dm %5$ds</string>
+    <string name="exam_recommended_rev">Recommended Revision: %1$s</string>
+    <string name="exam_accuracy_ch">Accuracy by Chapter</string>
+    <string name="exam_detailed_review">Detailed Answer Review</string>
+    <string name="exam_question_numbered">Q%1$d. %2$s</string>
+    <string name="exam_your_answer">Your Answer: %1$s</string>
+    <string name="exam_unanswered">(Unanswered)</string>
+    <string name="exam_explanation_ref">Explanation (Ch.%1$d, p.%2$d): %3$s</string>
+
+    <!-- Planner & Focus -->
+    <string name="planner_tab_planner">Study Planner</string>
+    <string name="planner_tab_focus">Focus Studio</string>
+    <string name="planner_title">Academic Planner</string>
+    <string name="planner_counts">%1$d pending • %2$d done</string>
+    <string name="planner_task_btn">Task</string>
+    <string name="planner_adaptive_title">Adaptive Plan &amp; Missed Session Recovery</string>
+    <string name="planner_capacity">Daily study capacity: %1$d min/day</string>
+    <string name="planner_reorganize_btn">Reorganize Missed &amp; Balance Queue</string>
+    <string name="planner_exam_countdowns">Exam Countdowns</string>
+    <string name="planner_win_daily">Daily</string>
+    <string name="planner_win_weekly">Weekly</string>
+    <string name="planner_win_monthly">Monthly</string>
+    <string name="planner_win_all">All</string>
+    <string name="planner_suggested_rev">Suggested Revision: %1$s</string>
+    <string name="planner_empty_title">No Tasks in This View</string>
+    <string name="planner_empty_sub">Add study blocks, homework, projects, or exam dates to build your personalized study schedule.</string>
+    <string name="planner_new_task_title">New Study Task / Exam</string>
+    <string name="planner_due_est">Due in %1$d day(s) • Est. %2$d min</string>
+    <string name="planner_repeat_label">Repeat: %1$s</string>
+
+    <string name="focus_mode_pomodoro">Focus %1$dm</string>
+    <string name="focus_mode_short">Break %1$dm</string>
+    <string name="focus_mode_long">Long %1$dm</string>
+    <string name="focus_mode_deep">Deep 45m</string>
+    <string name="focus_mode_stopwatch">Stopwatch</string>
+    <string name="focus_calm_mode">Calm Deep Focus</string>
+    <string name="focus_goal_label">Session Goal (e.g. Finish Ch. 3 exercises)</string>
+    <string name="focus_notes_label">Session Reflection Notes</string>
+    <string name="focus_log_session">Log Session</string>
+    <string name="focus_chart_title">Focus Minutes by Subject</string>
+    <string name="focus_recent_title">Recent Focus Sessions</string>
+    <string name="focus_settings_title">Pomodoro Intervals</string>
+    <string name="focus_slider_work">Focus: %1$d min</string>
+    <string name="focus_slider_short">Short Break: %1$d min</string>
+    <string name="focus_slider_long">Long Break: %1$d min</string>
+
+    <!-- Tools & Analytics -->
+    <string name="tools_tab_analytics">Analytics</string>
+    <string name="tools_tab_toolbox">Student Toolbox</string>
+    <string name="analytics_title">Academic Mastery Analytics</string>
+    <string name="analytics_formula_note">Mastery Formula: 70%% Question &amp; Exam Accuracy + 30%% Spaced-Repetition Recall. Passive reading time never inflates mastery.</string>
+    <string name="analytics_acc">Accuracy</string>
+    <string name="analytics_recall">Recall</string>
+    <string name="analytics_exams">Exams</string>
+    <string name="analytics_focus">Focus</string>
+    <string name="analytics_streak">Streak</string>
+    <string name="analytics_notes">Notes</string>
+    <string name="analytics_items_sub">%1$d items</string>
+    <string name="analytics_cards_sub">%1$d cards</string>
+    <string name="analytics_taken_sub">%1$d taken</string>
+    <string name="analytics_sessions_sub">%1$d sessions</string>
+    <string name="analytics_active_days">Active days</string>
+    <string name="analytics_books_sub">%1$d books</string>
+    <string name="analytics_by_book">Mastery by Textbook</string>
+    <string name="analytics_mistakes_topic">Unresolved Mistakes by Topic</string>
+    <string name="analytics_export_title">Academic Export Center</string>
+    <string name="analytics_export_sub">Share or print a complete summary of your study notes, mistake report, and progress.</string>
+
+    <string name="tool_calc">Calculator</string>
+    <string name="tool_solver">AI Solver</string>
+    <string name="tool_grade">Grade Calc</string>
+    <string name="tool_formulas">Formulas</string>
+    <string name="tool_units">Units</string>
+    <string name="tool_word_count">Word Count</string>
+    <string name="tool_citations">Citations</string>
+
+    <string name="calc_title">Scientific Calculator &amp; Step Trace</string>
+    <string name="calc_hint">Expression (e.g. sqrt(144) + 2^5 * sin(30))</string>
+    <string name="calc_eval">Calculate</string>
+    <string name="calc_result">Result: %1$s</string>
+    <string name="calc_steps">Evaluation Steps:</string>
+    <string name="calc_invalid">Invalid expression</string>
+
+    <string name="solver_title">AI Step-by-Step Equation &amp; Problem Solver</string>
+    <string name="solver_hint">Enter equation, derivative, stoichiometry, or physics problem</string>
+    <string name="solver_btn">Solve Step-by-Step</string>
+
+    <string name="grade_title">Weighted Course Grade</string>
+    <string name="grade_current_avg">Current Weighted Average: %1$s%% (Total Weight: %2$s%%)</string>
+    <string name="grade_item_row">Item %1$d: %2$s%% (Weight %3$s%%)</string>
+    <string name="grade_score_label">Score %%</string>
+    <string name="grade_weight_label">Weight %%</string>
+    <string name="grade_final_title">Required Final Exam Score</string>
+    <string name="grade_current_label">Current %%</string>
+    <string name="grade_target_label">Target %%</string>
+    <string name="grade_final_wt_label">Final Wt %%</string>
+    <string name="grade_needed_result">Score needed on final exam: %1$s%%</string>
+
+    <string name="formulas_core_title">Core Academic Formulas</string>
+    <string name="formulas_extracted_title">Extracted Textbook Formula Sheets</string>
+
+    <string name="units_title">Scientific Unit Converter</string>
+    <string name="units_value_label">Value</string>
+    <string name="units_from">From:</string>
+    <string name="units_to">To:</string>
+    <string name="unit_cat_length">Length</string>
+    <string name="unit_cat_mass">Mass</string>
+    <string name="unit_cat_energy">Energy</string>
+    <string name="unit_cat_pressure">Pressure</string>
+    <string name="unit_cat_data">Data</string>
+    <string name="unit_cat_temperature">Temperature</string>
+
+    <string name="wc_title">Essay Word &amp; Reading Time Counter</string>
+    <string name="wc_hint">Paste essay or paragraph draft</string>
+    <string name="wc_words">Words</string>
+    <string name="wc_chars">Chars</string>
+    <string name="wc_read_time">Read Time</string>
+    <string name="wc_count_sub">count</string>
+    <string name="wc_chars_sub">characters</string>
+    <string name="wc_wpm_sub">@ 200 wpm</string>
+
+    <string name="cit_title">Academic Citation Generator</string>
+    <string name="cit_authors">Author(s)</string>
+    <string name="cit_book_title">Book / Paper Title</string>
+    <string name="cit_year">Year</string>
+    <string name="cit_pages">Pages</string>
+    <string name="cit_publisher">Publisher / Journal</string>
+    <string name="cit_generate_btn">Generate &amp; Save Citation</string>
+
+    <!-- Enum Display Strings -->
+    <string name="diff_mixed">MIXED</string>
+    <string name="diff_easy">EASY</string>
+    <string name="diff_medium">MEDIUM</string>
+    <string name="diff_hard">HARD</string>
+
+    <string name="prio_low">LOW</string>
+    <string name="prio_medium">MEDIUM</string>
+    <string name="prio_high">HIGH</string>
+    <string name="prio_urgent">URGENT</string>
+
+    <string name="task_study">STUDY</string>
+    <string name="task_homework">HOMEWORK</string>
+    <string name="task_assignment">ASSIGNMENT</string>
+    <string name="task_project">PROJECT</string>
+    <string name="task_exam">EXAM</string>
+    <string name="task_revision">REVISION</string>
+
+    <string name="repeat_none">NONE</string>
+    <string name="repeat_daily">DAILY</string>
+    <string name="repeat_weekly">WEEKLY</string>
+
+    <string name="mastery_not_started">NOT STARTED</string>
+    <string name="mastery_learning">LEARNING</string>
+    <string name="mastery_reviewing">REVIEWING</string>
+    <string name="mastery_mastered">MASTERED</string>
+
+    <string name="tutor_mode_explain">Explain</string>
+    <string name="tutor_mode_explain_desc">Clear explanation anchored to this chapter</string>
+    <string name="tutor_mode_simplify">Simplify</string>
+    <string name="tutor_mode_simplify_desc">Plain-language breakdown of difficult concepts</string>
+    <string name="tutor_mode_teach">Teach Step-by-Step</string>
+    <string name="tutor_mode_teach_desc">Guided lesson with comprehension checks</string>
+    <string name="tutor_mode_socratic">Socratic</string>
+    <string name="tutor_mode_socratic_desc">Guides you with questions before giving answers</string>
+    <string name="tutor_mode_hint">Hint</string>
+    <string name="tutor_mode_hint_desc">Progressive clues without spoiling the solution</string>
+    <string name="tutor_mode_solve">Solve</string>
+    <string name="tutor_mode_solve_desc">Step-by-step worked solution</string>
+    <string name="tutor_mode_compare">Compare</string>
+    <string name="tutor_mode_compare_desc">Side-by-side comparison of related concepts</string>
+    <string name="tutor_mode_examples">Examples</string>
+    <string name="tutor_mode_examples_desc">Additional worked examples grounded in the text</string>
+    <string name="tutor_mode_exam">Examiner</string>
+    <string name="tutor_mode_exam_desc">Evaluates your response like an examiner</string>
+    <string name="tutor_mode_deep">Deep Learning</string>
+    <string name="tutor_mode_deep_desc">Deeper conceptual links across chapters</string>
+    <string name="tutor_mode_ask_book">Ask Textbook</string>
+    <string name="tutor_mode_ask_book_desc">Answers strictly from your uploaded pages with citations</string>
+
+    <string name="preset_quick_quiz">Quick Quiz</string>
+    <string name="preset_quick_quiz_desc">Rapid 5-question comprehension check</string>
+    <string name="preset_chapter_test">Chapter Test</string>
+    <string name="preset_chapter_test_desc">Focused assessment on selected chapter</string>
+    <string name="preset_unit_exam">Unit Exam</string>
+    <string name="preset_unit_exam_desc">Multi-chapter unit evaluation</string>
+    <string name="preset_comprehensive">Comprehensive Exam</string>
+    <string name="preset_comprehensive_desc">Full-textbook coverage across topics</string>
+    <string name="preset_final_sim">Final Exam Simulation</string>
+    <string name="preset_final_sim_desc">Timed high-stakes simulation, no revisit</string>
+    <string name="preset_difficult">Difficult Only</string>
+    <string name="preset_difficult_desc">Hard-difficulty analytical &amp; calculation items</string>
+    <string name="preset_weak_topics">Weak Topics Exam</string>
+    <string name="preset_weak_topics_desc">Targets chapters &amp; topics with lowest accuracy</string>
+    <string name="preset_mistake_review">Mistake Review Exam</string>
+    <string name="preset_mistake_review_desc">Re-tests questions previously answered incorrectly</string>
+    <string name="preset_unseen_only">Unseen Questions</string>
+    <string name="preset_unseen_only_desc">Fresh questions you have never attempted</string>
+    <string name="preset_custom">Custom Exam</string>
+    <string name="preset_custom_desc">Fully customized exam configuration</string>
+
+    <string name="qtype_mcq">Multiple Choice</string>
+    <string name="qtype_true_false">True / False</string>
+    <string name="qtype_fill_blank">Fill in the Blank</string>
+    <string name="qtype_matching">Matching</string>
+    <string name="qtype_ordering">Ordering</string>
+    <string name="qtype_short_answer">Short Answer</string>
+    <string name="qtype_long_answer">Long Answer</string>
+    <string name="qtype_essay">Essay</string>
+    <string name="qtype_definition">Definition</string>
+    <string name="qtype_explain_justify">Explain &amp; Justify</string>
+    <string name="qtype_compare_contrast">Compare &amp; Contrast</string>
+    <string name="qtype_terminology">Scientific Terminology</string>
+    <string name="qtype_calculation">Calculation</string>
+    <string name="qtype_word_problem">Word Problem</string>
+    <string name="qtype_case_study">Case Study</string>
+    <string name="qtype_application">Application</string>
+    <string name="qtype_comprehension">Reading Comprehension</string>
+    <string name="qtype_diagram_id">Diagram Identification</string>
+    <string name="qtype_table_interp">Table Interpretation</string>
+    <string name="qtype_formula_based">Formula-Based</string>
+
+    <!-- Additional Content Descriptions & Badges -->
+    <string name="cd_search">Search</string>
+    <string name="cd_dismiss">Dismiss</string>
+    <string name="cd_bookmark">Bookmark</string>
+    <string name="cd_personal_note">Personal note</string>
+    <string name="cd_edit_question">Edit question</string>
+    <string name="cd_report_error">Report error</string>
+    <string name="cd_hide_question">Hide question</string>
+    <string name="cd_shuffle_deck">Shuffle deck</string>
+    <string name="cd_bookmark_card">Bookmark flashcard</string>
+    <string name="cd_export_questions">Export questions PDF</string>
+    <string name="cd_export_cards">Export flashcards PDF</string>
+    <string name="cd_convert_flashcards">Convert note to flashcards</string>
+    <string name="cd_export_note">Export note PDF</string>
+    <string name="cd_edit_note">Edit note</string>
+    <string name="cd_delete_note">Delete note</string>
+    <string name="cd_delete_task">Delete task</string>
+    <string name="cd_exit_exam">Exit exam</string>
+    <string name="cd_flag_question">Flag question</string>
+    <string name="cd_close_results">Close results</string>
+    <string name="cd_export_pdf">Export PDF</string>
+    <string name="cd_print_results">Print results</string>
+    <string name="cd_toggle_ambient">Toggle ambient calm mode</string>
+    <string name="cd_configure_pomodoro">Configure Pomodoro</string>
+    <string name="cd_remove_item">Remove item</string>
+    <string name="cd_delete_citation">Delete citation</string>
+
+    <string name="library_book_meta">%1$s • %2$s • %3$s (%4$dp)</string>
+    <string name="qb_ref_short">Ch.%1$d • p.%2$d</string>
+    <string name="qb_chapter_short">Ch.%1$d</string>
+    <string name="qb_correct_ans_prefix">Correct Answer: %1$s</string>
+    <string name="notes_meta_line">Ch.%1$d • p.%2$d</string>
+    <string name="book_analytics_ch_prefix">Ch.%1$d: %2$s</string>
+    <string name="summary_ch_header">Ch. %1$d: %2$s</string>
+    <string name="glossary_ref">Ch.%1$d • p.%2$d</string>
+    <string name="mistake_book_ref">%1$s • Ch.%2$d</string>
+    <string name="unit_conversion_eq">%1$s %2$s = %3$s %4$s</string>
+    <string name="learn_compare_mode">Comparison Table of Key Concepts</string>
+    <string name="learn_gaps_mode">Prerequisite Knowledge Gaps &amp; Difficult Sections</string>
+
+    <!-- AI Connection & Provider Labels -->
+    <string name="ai_provider_ollama">Local Ollama</string>
+    <string name="ai_provider_gemini">Cloud Gemini</string>
+    <string name="ai_conn_success_ollama">Connected (%1$d local model(s) found)</string>
+    <string name="ai_conn_success_gemini">Gemini connection verified (%1$s)</string>
+    <string name="ai_conn_failed">Connection failed: %1$s</string>
+    <string name="ai_endpoint_invalid">Invalid Ollama URL: %1$s</string>
+    <string name="ai_timeout_short">%1$ds</string>
+
+    <!-- ViewModel Status & Banner Messages -->
+    <string name="vm_reading_file">Reading file...</string>
+    <string name="vm_processing_text">Processing study text...</string>
+    <string name="vm_analyzing_structure">AI analyzing chapters &amp; structure...</string>
+    <string name="vm_generating_ch1">Generating Chapter 1 summaries, glossary &amp; questions...</string>
+    <string name="vm_imported_partial">Imported with %1$d failed page(s). You can retry failed pages anytime.</string>
+    <string name="vm_analyzed_chapters">\"%1$s\" analyzed into %2$d chapter(s).</string>
+    <string name="vm_retrying_pages">Retrying failed pages...</string>
+    <string name="vm_pages_recovered">All pages recovered successfully.</string>
+    <string name="vm_pages_still_failed">%1$d page(s) still failed.</string>
+    <string name="vm_no_extracted_pages">No extracted pages available for this book.</string>
+    <string name="vm_generating_ch_resources">Generating AI summaries, concept map &amp; questions for Ch. %1$d...</string>
+    <string name="vm_generating_questions">Generating %1$d custom questions...</string>
+    <string name="vm_added_questions">Added %1$d questions to Question Bank.</string>
+    <string name="vm_question_flagged">Question flagged for review.</string>
+    <string name="vm_reading_assistant_busy">Running Reading Assistant (%1$s)...</string>
+    <string name="vm_eval_teachback">Evaluating your Teach-Back explanation...</string>
+    <string name="vm_analyzing_mode">Analyzing %1$s...</string>
+    <string name="vm_solving_eq">Solving step-by-step...</string>
+    <string name="vm_note_cards_hint">Add a few bullet points or Term: Definition lines in your note first.</string>
+    <string name="vm_created_cards_from_note">Created %1$d flashcard(s) from \"%2$s\".</string>
+    <string name="vm_rescheduled_missed">Rescheduled %1$d missed session(s) realistically across your upcoming capacity.</string>
+    <string name="vm_plan_balanced">Study plan balanced with your Smart Revision Queue.</string>
+    <string name="vm_recorded_focus">Recorded %1$dm focus session for %2$s.</string>
+    <string name="vm_exam_no_questions">No matching questions available for this exam configuration.</string>
+    <string name="vm_recommendation_strong">Strong mastery across all tested chapters. Continue spaced-repetition flashcard reviews.</string>
+    <string name="vm_recommendation_focus">Focus revision on %1$s and review missed items in your Mistake Notebook.</string>
+    <string name="vm_doc_failed">Document extraction failed.</string>
+    <string name="vm_save_book_failed">Failed to save book: %1$s</string>
+    <string name="vm_ch_intel_err">Chapter intelligence error: %1$s</string>
+    <string name="vm_q_gen_err">Question generation error: %1$s</string>
+    <string name="vm_fc_gen_err">Flashcard generation error: %1$s</string>
+    <string name="vm_tutor_failed">AI Tutor request failed.</string>
+    <string name="vm_assistant_failed">Assistant failed.</string>
+    <string name="vm_teachback_failed">Teach-Back evaluation failed.</string>
+    <string name="vm_analysis_failed">Analysis failed.</string>
+    <string name="vm_solver_failed">Equation solver failed.</string>
+    <string name="vm_layout_save_failed">Failed to save dashboard layout.</string>
+    <string name="vm_focus_completed_note">Completed timer goal</string>
+    <string name="vm_tutor_distinction">Textbook references cited; supplementary explanations labeled.</string>
+    <string name="subject_physics">Physics</string>
+    <string name="subject_chemistry">Chemistry</string>
+    <string name="subject_mathematics">Mathematics</string>
+    <string name="subject_biology">Biology</string>
+    <string name="subject_economics">Economics</string>
+    <string name="focus_goal_study_book">Study %1$s</string>
+
+    <!-- Plurals -->
+    <plurals name="plural_books_count">
+        <item quantity="one">%1$d textbook</item>
+        <item quantity="other">%1$d textbooks</item>
+    </plurals>
+    <plurals name="plural_questions_count">
+        <item quantity="one">%1$d question</item>
+        <item quantity="other">%1$d questions</item>
+    </plurals>
+    <plurals name="plural_pages_count">
+        <item quantity="one">%1$d page</item>
+        <item quantity="other">%1$d pages</item>
+    </plurals>
+
+    <!-- Task 2: Cloud Book Sync -->
+    <string name="sync_center_title">Cloud Sync &amp; Offline Queue</string>
+    <string name="sync_status_idle">Ready</string>
+    <string name="sync_status_syncing">Syncing…</string>
+    <string name="sync_status_synced">Synced</string>
+    <string name="sync_status_queued">Offline (%1$d queued)</string>
+    <string name="sync_status_conflict">Conflict resolved (%1$d)</string>
+    <string name="sync_status_error">Sync retry needed</string>
+    <string name="sync_pill_label">Cloud: %1$s</string>
+    <string name="sync_pending_ops">Pending Queue Operations: %1$d</string>
+    <string name="sync_conflicts_resolved">Conflicts Auto-Resolved: %1$d</string>
+    <string name="sync_last_synced">Last Synced: %1$s</string>
+    <string name="sync_never">Not synced yet</string>
+    <string name="sync_mode_privacy">Local-Only Privacy Mode is active. Changes remain queued on this device.</string>
+    <string name="sync_btn_now">Sync Now</string>
+    <string name="sync_btn_pull_pages">Restore Cloud Pages</string>
+    <string name="sync_btn_clear_queue">Clear Queue</string>
+    <string name="sync_queue_empty">All changes are up to date with your cloud workspace.</string>
+    <string name="sync_completed_msg">Cloud sync completed successfully.</string>
+    <string name="sync_pages_restored">Restored %1$d extracted page(s) from cloud.</string>
+    <string name="cd_cloud_sync">Cloud sync status</string>
+
+    <!-- Task 3: Full-Book Intelligence & Retrieval -->
+    <string name="fullbook_analyze_btn">Analyze All Chapters</string>
+    <string name="fullbook_progress">Analyzing Ch. %1$d/%2$d: %3$s</string>
+    <string name="fullbook_done">Full-book analysis complete: %1$d chapter(s) processed.</string>
+    <string name="fullbook_partial">Full-book analysis finished (%1$d ok, %2$d failed).</string>
+    <string name="tutor_fullbook_toggle">Full-Book Passage Search</string>
+    <string name="tutor_retrieved_sources">Matched Passages (%1$d)</string>
+    <string name="tutor_passage_chip">Ch.%1$d • p.%2$d</string>
+
+    <!-- Task 4: Exam Engine -->
+    <string name="exams_chapter_filter">Chapters</string>
+    <string name="exams_type_filter">Question Types</string>
+    <string name="exams_retake_missed">Retake Missed (%1$d)</string>
+    <string name="exams_filter_all">All (%1$d)</string>
+    <string name="exams_filter_incorrect">Incorrect (%1$d)</string>
+    <string name="exams_filter_flagged">Flagged (%1$d)</string>
+    <string name="exams_eval_feedback">Feedback: %1$s</string>
+    <string name="exams_ai_grading_badge">AI Graded</string>
+    <string name="exams_offline_saved">Saved offline and queued for cloud sync.</string>
+
+    <!-- Task 5: Security & Accounts -->
+    <string name="sec_sheet_title">Account &amp; Security</string>
+    <string name="sec_uid_masked">Account ID: %1$s</string>
+    <string name="sec_encryption_badge">AES-256-GCM Secret Encryption Active</string>
+    <string name="sec_privacy_toggle">Local-Only Privacy Mode</string>
+    <string name="sec_privacy_sub">Keep notes, progress, and books offline on this device without cloud sync</string>
+    <string name="sec_open_sync">Open Cloud Sync Center</string>
+    <string name="sec_export_json">Export All Study Data (JSON)</string>
+    <string name="sec_clear_cache">Clear Local Book Cache</string>
+    <string name="sec_cache_cleared">Local book and offline cache cleared.</string>
+    <string name="sec_export_done">Exported study workspace to JSON.</string>
+    <string name="sec_delete_account_btn">Delete Account &amp; Cloud Data</string>
+    <string name="sec_delete_title">Permanently Delete Account?</string>
+    <string name="sec_delete_body">This will erase all synced textbooks, notes, flashcards, exams, and local caches. Type DELETE to confirm.</string>
+    <string name="sec_delete_confirm_hint">Type DELETE</string>
+    <string name="sec_delete_word">DELETE</string>
+    <string name="sec_reauth_required">Please sign out and sign in with Google again before deleting your account.</string>
+    <string name="sec_account_deleted">Account and study data deleted.</string>
+    <string name="cd_account_security">Account and security</string>
 </resources>

@@ -1,6 +1,5 @@
 package com.example.core
 
-import android.app.Activity
 import android.content.Context
 import android.util.Log
 import androidx.credentials.ClearCredentialStateRequest
@@ -91,12 +90,12 @@ fun onGoogleSignInClicked(
     val clientId = try {
         context.getString(R.string.default_web_client_id)
     } catch (_: Exception) {
-        onAuthError("Google Sign-In configuration missing: default_web_client_id not found")
+        onAuthError(context.getString(R.string.auth_err_missing_client))
         return
     }
-    val activity = context as? Activity
+    val activity = context.findActivity()
     if (activity == null) {
-        onAuthError("Sign-in requires an active screen context.")
+        onAuthError(context.getString(R.string.auth_err_no_activity))
         return
     }
     val signInOption = GetSignInWithGoogleOption.Builder(serverClientId = clientId).build()
@@ -112,7 +111,7 @@ fun onGoogleSignInClicked(
                 Firebase.auth.signInWithCredential(GoogleAuthProvider.getCredential(token, null)).await()
                 onAuthSuccess()
             } else {
-                onAuthError("Unexpected credential type returned.")
+                onAuthError(context.getString(R.string.auth_err_unexpected_cred))
             }
         } catch (e: GetCredentialCancellationException) {
             Log.w("Auth", "Google Sign-In flow cancelled or dismissed: ${e.message}", e)
@@ -121,7 +120,7 @@ fun onGoogleSignInClicked(
             throw e
         } catch (e: Exception) {
             Log.e("Auth", "Google Sign-In failed", e)
-            onAuthError(e.localizedMessage ?: "Sign in failed")
+            onAuthError(e.localizedMessage ?: context.getString(R.string.auth_err_failed))
         }
     }
 }

@@ -117,6 +117,22 @@ class ExportManager(private val context: Context) {
         context.startActivity(Intent.createChooser(intent, "Share Study Notes"))
     }
 
+    fun shareJsonExport(title: String, jsonContent: String): File {
+        val exportDir = File(context.cacheDir, "exports").apply { mkdirs() }
+        val safeName = title.replace(Regex("[^a-zA-Z0-9_\\-]"), "_").take(40).ifBlank { "sora_data_export" }
+        val jsonFile = File(exportDir, "${safeName}_${System.currentTimeMillis()}.json")
+        jsonFile.writeText(jsonContent, Charsets.UTF_8)
+        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", jsonFile)
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = "application/json"
+            putExtra(Intent.EXTRA_STREAM, uri)
+            putExtra(Intent.EXTRA_SUBJECT, title)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        context.startActivity(Intent.createChooser(intent, title))
+        return jsonFile
+    }
+
     fun printStudyMaterial(title: String, subtitle: String, bodyContent: String) {
         val pdfFile = generatePdfFile(title, subtitle, bodyContent)
         val printManager = context.getSystemService(Context.PRINT_SERVICE) as? PrintManager ?: return

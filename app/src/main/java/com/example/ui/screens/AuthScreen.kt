@@ -15,25 +15,32 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.credentials.CredentialManager
 import com.example.R
+import com.example.core.AppLanguage
 import com.example.core.attemptAutoSignIn
+import com.example.core.findActivity
 import com.example.core.onGoogleSignInClicked
+import com.example.ui.components.SoraLanguageSwitcher
 import com.example.ui.components.SoraSurfaceCard
 
 @Composable
 fun AuthScreen(
+    selectedLanguage: AppLanguage = AppLanguage.ENGLISH,
+    onSelectLanguage: (AppLanguage) -> Unit = {},
     onAuthSuccess: () -> Unit
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val credentialManager = remember { CredentialManager.create(context) }
+    val credentialManager = remember(context) { CredentialManager.create(context.findActivity() ?: context) }
 
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
@@ -72,7 +79,7 @@ fun AuthScreen(
             ) {
                 Image(
                     painter = painterResource(id = R.drawable.img_hero_study),
-                    contentDescription = "SŌRA study sanctuary backdrop",
+                    contentDescription = stringResource(R.string.cd_sora_hero),
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()
                 )
@@ -81,9 +88,17 @@ fun AuthScreen(
                         .fillMaxSize()
                         .background(
                             Brush.verticalGradient(
-                                listOf(Color.Transparent, Color(0xCC0E1017))
+                                listOf(Color(0x550E1017), Color(0xCC0E1017))
                             )
                         )
+                )
+                SoraLanguageSwitcher(
+                    currentLanguage = selectedLanguage,
+                    onLanguageSelected = onSelectLanguage,
+                    onDarkBackdrop = true,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(14.dp)
                 )
                 Row(
                     modifier = Modifier
@@ -94,20 +109,20 @@ fun AuthScreen(
                 ) {
                     Image(
                         painter = painterResource(id = R.drawable.img_sora_icon),
-                        contentDescription = "SŌRA logo",
+                        contentDescription = stringResource(R.string.cd_sora_logo),
                         modifier = Modifier
                             .size(48.dp)
                             .clip(RoundedCornerShape(12.dp))
                     )
                     Column {
                         Text(
-                            text = "SŌRA",
+                            text = stringResource(R.string.app_name),
                             style = MaterialTheme.typography.displaySmall,
                             color = Color.White,
                             fontWeight = FontWeight.Bold
                         )
                         Text(
-                            text = "Personal Academic Operating System",
+                            text = stringResource(R.string.auth_tagline),
                             style = MaterialTheme.typography.bodySmall,
                             color = Color(0xFFD1D5EA)
                         )
@@ -120,12 +135,12 @@ fun AuthScreen(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(
-                    text = "Transform textbooks into mastery.",
+                    text = stringResource(R.string.auth_headline),
                     style = MaterialTheme.typography.headlineMedium,
                     color = MaterialTheme.colorScheme.onBackground
                 )
                 Text(
-                    text = "Upload PDFs, slides, documents, or photos to automatically build chapter summaries, concept maps, question banks, exams, flashcards, and an adaptive revision schedule.",
+                    text = stringResource(R.string.auth_subtitle),
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -133,10 +148,26 @@ fun AuthScreen(
 
             SoraSurfaceCard(modifier = Modifier.fillMaxWidth()) {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    FeatureRow(Icons.Rounded.AutoStories, "Smart Ingestion & OCR", "PDF, scanned pages, DOCX, PPTX, and images with page citations")
-                    FeatureRow(Icons.Rounded.Psychology, "11-Mode AI Tutor", "Socratic, Explain, Step-by-Step, Examiner & Ask the Textbook")
-                    FeatureRow(Icons.Rounded.Quiz, "20+ Question Types & Exams", "Proctored exam engine, mistake notebook, and SM-2 flashcards")
-                    FeatureRow(Icons.Rounded.Insights, "True Mastery Analytics", "Performance-based mastery, smart revision queue, and study planner")
+                    FeatureRow(
+                        Icons.Rounded.AutoStories,
+                        stringResource(R.string.auth_feature_ocr_title),
+                        stringResource(R.string.auth_feature_ocr_sub)
+                    )
+                    FeatureRow(
+                        Icons.Rounded.Psychology,
+                        stringResource(R.string.auth_feature_tutor_title),
+                        stringResource(R.string.auth_feature_tutor_sub)
+                    )
+                    FeatureRow(
+                        Icons.Rounded.Quiz,
+                        stringResource(R.string.auth_feature_exams_title),
+                        stringResource(R.string.auth_feature_exams_sub)
+                    )
+                    FeatureRow(
+                        Icons.Rounded.Insights,
+                        stringResource(R.string.auth_feature_analytics_title),
+                        stringResource(R.string.auth_feature_analytics_sub)
+                    )
                 }
             }
 
@@ -188,16 +219,16 @@ fun AuthScreen(
                         strokeWidth = 2.dp
                     )
                     Spacer(Modifier.width(12.dp))
-                    Text("Signing in...")
+                    Text(stringResource(R.string.auth_signing_in))
                 } else {
                     Icon(Icons.Rounded.Login, contentDescription = null)
                     Spacer(Modifier.width(10.dp))
-                    Text("Sign in with Google", style = MaterialTheme.typography.titleMedium)
+                    Text(stringResource(R.string.auth_sign_in_google), style = MaterialTheme.typography.titleMedium)
                 }
             }
 
             Text(
-                text = "Your textbooks, notes, exams, and revision progress sync privately to your student workspace.",
+                text = stringResource(R.string.auth_privacy_note),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -207,7 +238,7 @@ fun AuthScreen(
 
 @Composable
 private fun FeatureRow(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    icon: ImageVector,
     title: String,
     subtitle: String
 ) {

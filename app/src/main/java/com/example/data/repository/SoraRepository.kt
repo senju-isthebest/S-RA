@@ -5,6 +5,8 @@ import com.example.R
 import com.example.core.OperationType
 import com.example.core.handleFirestoreError
 import com.example.data.model.Book
+import com.example.data.model.BookPageContent
+import com.example.data.model.BookPageDoc
 import com.example.data.model.Chapter
 import com.example.data.model.CitationEntry
 import com.example.data.model.ExamRecord
@@ -16,11 +18,13 @@ import com.example.data.model.QuestionItem
 import com.example.data.model.SmartRevisionItem
 import com.example.data.model.StudyNote
 import com.example.data.model.Subject
+import com.example.data.model.SyncedUserPreferences
 import com.example.data.model.TutorMessage
 import com.example.data.model.UserProfile
 import com.google.firebase.Firebase
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.auth
+import com.google.firebase.firestore.CollectionReference
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
@@ -219,6 +223,145 @@ class SoraRepository(
 
     suspend fun deleteBook(bookId: String): Result<Unit> =
         deleteDoc("books", bookId)
+
+    // --- SYNCED BOOK PAGES & NON-SECRET PREFERENCES (TASK 2) ---
+    suspend fun saveBookPages(bookId: String, pages: List<BookPageContent>, clientUpdatedAtMillis: Long = System.currentTimeMillis()): Result<Unit> {
+        if (pages.isEmpty()) return Result.success(Unit)
+        var path = "users/unauth/books/$bookId/pages"
+        return try {
+            val uid = requireUserId()
+            val col = userDoc(uid).collection("books").document(bookId).collection("pages")
+            path = col.path
+            // Firestore batch limit is 500 writes; chunk safely at 350
+            pages.chunked(350).forEach { chunk ->
+                val batch = db.batch()
+                chunk.forEach { page ->
+                    val docId = "p_${page.pageNumber}"
+                    val ref = col.document(docId)
+                    val payload = BookPageDoc(
+                        bookId = bookId,
+                        pageNumber = page.pageNumber.toLong(),
+                        text = page.text.take(12000),
+                        extractionMethod = page.extractionMethod.ifBlank { "TEXT" },
+                        error = page.error.orEmpty(),
+                        clientUpdatedAtMillis = clientUpdatedAtMillis
+                    ).toCreateMap()
+                    batch.set(ref, payload)
+                }
+                batch.commit().await()
+            }
+            Result.success(Unit)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            handleFirestoreError(e, OperationType.WRITE, path)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun fetchBookPages(bookId: String): Result<List<BookPageContent>> {
+        var path = "users/unauth/books/$bookId/pages"
+        return try {
+            val uid = requireUserId()
+            val col = userDoc(uid).collection("books").document(bookId).collection("pages")
+            path = col.path
+            val snap = col.get().await()
+            val list = snap.toObjects(BookPageDoc::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE)
+                .map { it.toBookPageContent() }
+                .sortedBy { it.pageNumber }
+            Result.success(list)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            handleFirestoreError(e, OperationType.LIST, path)
+            Result.failure(e)
+        }
+    }
+
+    fun observeSyncedPreferences(uid: String): Flow<SyncedUserPreferences?> = flow {
+        require(uid.isNotBlank()) { "UID must not be blank" }
+        val ref = userDoc(uid).collection("preferences").document("app")
+        emitAll(
+            ref.snapshots()
+                .map { snap ->
+                    if (snap.exists()) snap.toObject(SyncedUserPreferences::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE)
+                    else null
+                }
+                .catch { error ->
+                    val fsErr = generateSequence(error) { it.cause }
+                        .filterIsInstance<FirebaseFirestoreException>()
+                        .firstOrNull()
+                    if (fsErr == null && error is CancellationException) throw error
+                    val toLog = fsErr ?: (error as? Exception)
+                    if (toLog != null && auth.currentUser?.uid == uid) {
+                        handleFirestoreError(toLog, OperationType.GET, ref.path)
+                    }
+                    throw error
+                }
+        )
+    }
+
+    suspend fun saveSyncedPreferences(prefs: SyncedUserPreferences): Result<Unit> {
+        var path = "users/unauth/preferences/app"
+        return try {
+            val uid = requireUserId()
+            val ref = userDoc(uid).collection("preferences").document("app")
+            path = ref.path
+            val existing = ref.get().await()
+            if (existing.exists()) {
+                val updates = prefs.toCreateMap().toMutableMap().apply { remove("createdAt") }
+                updates["updatedAt"] = FieldValue.serverTimestamp()
+                ref.update(updates).await()
+            } else {
+                ref.set(prefs.toCreateMap()).await()
+            }
+            Result.success(Unit)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            handleFirestoreError(e, OperationType.WRITE, path)
+            Result.failure(e)
+        }
+    }
+
+    // --- ACCOUNT DATA DELETION (TASK 5) ---
+    suspend fun deleteAllUserCloudData(): Result<Unit> {
+        val uid = auth.currentUser?.uid ?: return Result.failure(IllegalStateException("Not signed in"))
+        return try {
+            val root = userDoc(uid)
+            val booksSnap = root.collection("books").get().await()
+            for (bookDoc in booksSnap.documents) {
+                deleteCollectionBatched(bookDoc.reference.collection("chapters"))
+                deleteCollectionBatched(bookDoc.reference.collection("glossary"))
+                deleteCollectionBatched(bookDoc.reference.collection("pages"))
+                bookDoc.reference.delete().await()
+            }
+            val topCollections = listOf(
+                "subjects", "questions", "flashcards", "exams",
+                "notes", "plannerTasks", "focusSessions",
+                "tutorMessages", "citations", "preferences"
+            )
+            topCollections.forEach { name ->
+                deleteCollectionBatched(root.collection(name))
+            }
+            root.delete().await()
+            Result.success(Unit)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            handleFirestoreError(e, OperationType.DELETE, "users/$uid")
+            Result.failure(e)
+        }
+    }
+
+    private suspend fun deleteCollectionBatched(col: CollectionReference) {
+        val snap = col.get().await()
+        snap.documents.chunked(350).forEach { chunk ->
+            val batch = db.batch()
+            chunk.forEach { doc -> batch.delete(doc.reference) }
+            batch.commit().await()
+        }
+    }
 
     // --- CHAPTERS & GLOSSARY ---
     suspend fun saveChapter(bookId: String, chapter: Chapter): Result<String> {

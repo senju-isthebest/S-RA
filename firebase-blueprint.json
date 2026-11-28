@@ -307,6 +307,45 @@
         "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["style", "title", "formattedText", "createdAt", "updatedAt"]
+    },
+    "BookPageDoc": {
+      "title": "BookPageDoc",
+      "description": "Synchronized extracted textbook page content and OCR metadata",
+      "type": "object",
+      "properties": {
+        "bookId": { "type": "string" },
+        "pageNumber": { "type": "integer" },
+        "text": { "type": "string" },
+        "extractionMethod": { "type": "string" },
+        "error": { "type": "string" },
+        "clientUpdatedAtMillis": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["bookId", "pageNumber", "text", "extractionMethod", "clientUpdatedAtMillis", "createdAt", "updatedAt"]
+    },
+    "SyncedUserPreferences": {
+      "title": "SyncedUserPreferences",
+      "description": "Cross-device non-secret user study, theme, language, and AI routing preferences (never API keys)",
+      "type": "object",
+      "properties": {
+        "themeMode": { "type": "string" },
+        "languageCode": { "type": "string" },
+        "pomodoroWorkMinutes": { "type": "integer" },
+        "pomodoroShortBreakMinutes": { "type": "integer" },
+        "pomodoroLongBreakMinutes": { "type": "integer" },
+        "ambientFocusSound": { "type": "boolean" },
+        "aiStrategy": { "type": "string" },
+        "aiFallbackEnabled": { "type": "boolean" },
+        "ollamaModel": { "type": "string" },
+        "ollamaVisionModel": { "type": "string" },
+        "geminiModel": { "type": "string" },
+        "aiTimeoutMs": { "type": "integer" },
+        "clientUpdatedAtMillis": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["themeMode", "languageCode", "pomodoroWorkMinutes", "pomodoroShortBreakMinutes", "pomodoroLongBreakMinutes", "ambientFocusSound", "aiStrategy", "aiFallbackEnabled", "ollamaModel", "geminiModel", "aiTimeoutMs", "clientUpdatedAtMillis", "createdAt", "updatedAt"]
     }
   },
   "firestore": {
@@ -361,6 +400,14 @@
     "/users/{userId}/citations/{citationId}": {
       "schema": { "$ref": "#/entities/CitationEntry" },
       "description": "Student citation organizer entries"
+    },
+    "/users/{userId}/books/{bookId}/pages/{pageId}": {
+      "schema": { "$ref": "#/entities/BookPageDoc" },
+      "description": "Cloud-synced extracted textbook pages for multi-device continuity"
+    },
+    "/users/{userId}/preferences/{prefId}": {
+      "schema": { "$ref": "#/entities/SyncedUserPreferences" },
+      "description": "Non-secret synchronized application preferences"
     }
   }
 }

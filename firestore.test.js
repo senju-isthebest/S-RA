@@ -460,3 +460,84 @@ test("Exams enforce terminal SUBMITTED state lock", async () => {
     })
   );
 });
+
+test("Synced BookPageDoc and SyncedUserPreferences enforce ownership and block secrets", async () => {
+  const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
+  const bobDb = testEnv.authenticatedContext(BOB_UID).firestore();
+  const now = new Date(Date.now() - 2000);
+
+  const pageRef = aliceDb
+    .collection("users")
+    .doc(ALICE_UID)
+    .collection("books")
+    .doc("book_bio_1")
+    .collection("pages")
+    .doc("p_1");
+
+  await assertSucceeds(
+    pageRef.set({
+      bookId: "book_bio_1",
+      pageNumber: 1,
+      text: "Lipid bilayers separate aqueous compartments.",
+      extractionMethod: "PDF_TEXT",
+      error: "",
+      clientUpdatedAtMillis: Date.now() - 2000,
+      createdAt: now,
+      updatedAt: now,
+    })
+  );
+
+  await assertFails(bobDb.collection("users").doc(ALICE_UID).collection("books").doc("book_bio_1").collection("pages").get());
+
+  const prefRef = aliceDb
+    .collection("users")
+    .doc(ALICE_UID)
+    .collection("preferences")
+    .doc("app");
+
+  await assertSucceeds(
+    prefRef.set({
+      themeMode: "DARK",
+      languageCode: "ar",
+      pomodoroWorkMinutes: 25,
+      pomodoroShortBreakMinutes: 5,
+      pomodoroLongBreakMinutes: 15,
+      ambientFocusSound: true,
+      aiStrategy: "GEMINI_FIRST",
+      aiFallbackEnabled: true,
+      ollamaModel: "qwen2.5:3b",
+      geminiModel: "gemini-3.8-flash",
+      aiTimeoutMs: 60000,
+      clientUpdatedAtMillis: Date.now() - 2000,
+      createdAt: now,
+      updatedAt: now,
+    })
+  );
+
+  // Storing API keys in cloud preferences must be blocked
+  await assertFails(
+    aliceDb
+      .collection("users")
+      .doc(ALICE_UID)
+      .collection("preferences")
+      .doc("bad_secret")
+      .set({
+        themeMode: "DARK",
+        languageCode: "en",
+        pomodoroWorkMinutes: 25,
+        pomodoroShortBreakMinutes: 5,
+        pomodoroLongBreakMinutes: 15,
+        ambientFocusSound: false,
+        aiStrategy: "GEMINI_FIRST",
+        aiFallbackEnabled: true,
+        ollamaModel: "qwen2.5:3b",
+        geminiModel: "gemini-3.8-flash",
+        geminiApiKey: "AIzaSecretLeak",
+        aiTimeoutMs: 60000,
+        clientUpdatedAtMillis: Date.now() - 2000,
+        createdAt: now,
+        updatedAt: now,
+      })
+  );
+});
+

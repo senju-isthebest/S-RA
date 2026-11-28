@@ -15,11 +15,19 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.example.R
+import com.example.core.SoraFormatters
+import com.example.data.ai.SoraJson
+import com.example.data.ai.JsonStr
 import com.example.data.export.ExportManager
 import com.example.data.model.*
+import com.example.domain.AnswerEvaluation
+import com.example.domain.ExamBlueprint
+import com.example.domain.ExamEngine
 import com.example.ui.SoraViewModel
 import com.example.ui.components.*
 import com.example.ui.theme.SoraSoftBlue
@@ -27,7 +35,6 @@ import com.example.ui.theme.SoraSuccess
 import com.example.ui.theme.SoraViolet
 import com.example.ui.theme.SoraWarning
 import kotlinx.coroutines.delay
-import org.json.JSONObject
 
 @Composable
 fun ExamsPracticeScreen(
@@ -42,12 +49,13 @@ fun ExamsPracticeScreen(
     val mistakeQuestions = remember(activeQuestions) {
         activeQuestions.filter { it.incorrectCount > 0L && !it.mistakeResolved }
     }
+    val mistakeExamTitle = stringResource(R.string.preset_mistake_review)
 
     Column(modifier = Modifier.fillMaxSize()) {
         TabRow(selectedTabIndex = subTab) {
-            Tab(selected = subTab == 0, onClick = { subTab = 0 }, text = { Text("Exams (${exams.size})") })
-            Tab(selected = subTab == 1, onClick = { subTab = 1 }, text = { Text("Practice (${activeQuestions.size})") })
-            Tab(selected = subTab == 2, onClick = { subTab = 2 }, text = { Text("Mistakes (${mistakeQuestions.size})") })
+            Tab(selected = subTab == 0, onClick = { subTab = 0 }, text = { Text(stringResource(R.string.exams_tab_exams, exams.size)) })
+            Tab(selected = subTab == 1, onClick = { subTab = 1 }, text = { Text(stringResource(R.string.exams_tab_practice, activeQuestions.size)) })
+            Tab(selected = subTab == 2, onClick = { subTab = 2 }, text = { Text(stringResource(R.string.exams_tab_mistakes, mistakeQuestions.size)) })
         }
 
         when (subTab) {
@@ -68,12 +76,18 @@ fun ExamsPracticeScreen(
                         else -> activeQuestions
                     }
                 }
+                val filterChips = listOf(
+                    "ALL" to stringResource(R.string.qb_filter_all),
+                    "UNANSWERED" to stringResource(R.string.qb_filter_unanswered),
+                    "WEAK" to stringResource(R.string.preset_weak_topics),
+                    "BOOKMARKED" to stringResource(R.string.qb_filter_bookmarked)
+                )
                 Column(modifier = Modifier.fillMaxSize()) {
                     LazyRow(
                         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        items(listOf("ALL" to "All", "UNANSWERED" to "Unanswered", "WEAK" to "Weak Topics", "BOOKMARKED" to "Bookmarked")) { (k, l) ->
+                        items(filterChips) { (k, l) ->
                             FilterChip(selected = practiceFilter == k, onClick = { practiceFilter = k }, label = { Text(l) })
                         }
                     }
@@ -90,7 +104,7 @@ fun ExamsPracticeScreen(
                 onStartMistakeExam = {
                     if (mistakeQuestions.isNotEmpty()) {
                         viewModel.createAndStartExam(
-                            title = "Mistake Review Exam",
+                            title = mistakeExamTitle,
                             preset = ExamPreset.MISTAKE_REVIEW,
                             selectedQuestions = mistakeQuestions.take(15),
                             durationMinutes = 20,
@@ -114,18 +128,39 @@ private fun ExamBuilderAndHistoryTab(
     onOpenExam: (String) -> Unit
 ) {
     var selectedBookIds by remember(books) { mutableStateOf(books.map { it.id }.toSet()) }
+    var selectedChapters by remember { mutableStateOf(emptySet<Long>()) }
+    var selectedTypes by remember { mutableStateOf(emptySet<String>()) }
     var customTitle by remember { mutableStateOf("") }
     var questionCount by remember { mutableIntStateOf(10) }
     var durationMinutes by remember { mutableIntStateOf(20) }
-    var difficultyFilter by remember { mutableStateOf("MIXED") } // MIXED, EASY, MEDIUM, HARD
+    var difficultyFilter by remember { mutableStateOf("MIXED") }
     var allowRevisit by remember { mutableStateOf(true) }
     var showExplanationEach by remember { mutableStateOf(false) }
 
-    val matchingQuestions = remember(questions, selectedBookIds, difficultyFilter) {
-        questions.filter { q ->
-            (selectedBookIds.isEmpty() || selectedBookIds.contains(q.bookId)) &&
-                (difficultyFilter == "MIXED" || q.difficulty == difficultyFilter)
-        }
+    val customDefaultTitle = stringResource(R.string.exams_custom_default_title)
+    val presetLabels = ExamPreset.entries.associateWith { it.localizedLabel() }
+
+    val availableChapters = remember(questions, selectedBookIds) {
+        questions.filter { selectedBookIds.isEmpty() || selectedBookIds.contains(it.bookId) }
+            .map { it.chapterNumber }.distinct().sorted()
+    }
+    val availableTypes = remember(questions, selectedBookIds) {
+        questions.filter { selectedBookIds.isEmpty() || selectedBookIds.contains(it.bookId) }
+            .map { it.questionType.uppercase() }.distinct().sorted()
+    }
+
+    val matchingQuestions = remember(questions, selectedBookIds, selectedChapters, selectedTypes, difficultyFilter) {
+        ExamEngine.buildExamQuestions(
+            allQuestions = questions,
+            blueprint = ExamBlueprint(
+                bookIds = selectedBookIds,
+                chapterNumbers = selectedChapters,
+                questionTypes = selectedTypes,
+                difficulty = difficultyFilter,
+                maxQuestions = questions.size.coerceAtLeast(1)
+            ),
+            randomize = false
+        )
     }
 
     LazyColumn(
@@ -136,21 +171,21 @@ private fun ExamBuilderAndHistoryTab(
         item {
             SoraSurfaceCard(accentBorder = SoraViolet, modifier = Modifier.fillMaxWidth()) {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("Custom AI Exam Builder", style = MaterialTheme.typography.titleMedium)
+                    Text(stringResource(R.string.exams_builder_title), style = MaterialTheme.typography.titleMedium)
                     Text(
-                        "Answers are locked during exams unless immediate feedback is enabled.",
+                        stringResource(R.string.exams_builder_sub),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     OutlinedTextField(
                         value = customTitle,
                         onValueChange = { customTitle = it },
-                        label = { Text("Exam Title (optional)") },
+                        label = { Text(stringResource(R.string.exams_title_optional)) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
                     if (books.isNotEmpty()) {
-                        Text("Source Textbooks:", style = MaterialTheme.typography.labelMedium)
+                        Text(stringResource(R.string.exams_source_books), style = MaterialTheme.typography.labelMedium)
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             items(books, key = { it.id }) { b ->
                                 val isOn = selectedBookIds.contains(b.id)
@@ -164,40 +199,70 @@ private fun ExamBuilderAndHistoryTab(
                             }
                         }
                     }
+                    if (availableChapters.isNotEmpty()) {
+                        Text(stringResource(R.string.exams_chapter_filter), style = MaterialTheme.typography.labelMedium)
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            items(availableChapters) { ch ->
+                                val isOn = selectedChapters.contains(ch)
+                                FilterChip(
+                                    selected = isOn,
+                                    onClick = {
+                                        selectedChapters = if (isOn) selectedChapters - ch else selectedChapters + ch
+                                    },
+                                    label = { Text(stringResource(R.string.qb_chapter_short, ch)) }
+                                )
+                            }
+                        }
+                    }
+                    if (availableTypes.isNotEmpty()) {
+                        Text(stringResource(R.string.exams_type_filter), style = MaterialTheme.typography.labelMedium)
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            items(availableTypes) { qType ->
+                                val isOn = selectedTypes.contains(qType)
+                                FilterChip(
+                                    selected = isOn,
+                                    onClick = {
+                                        selectedTypes = if (isOn) selectedTypes - qType else selectedTypes + qType
+                                    },
+                                    label = { Text(localizedQuestionTypeName(qType)) }
+                                )
+                            }
+                        }
+                    }
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         listOf("MIXED", "EASY", "MEDIUM", "HARD").forEach { d ->
                             FilterChip(
                                 selected = difficultyFilter == d,
                                 onClick = { difficultyFilter = d },
-                                label = { Text(d) }
+                                label = { Text(localizedDifficulty(d)) }
                             )
                         }
                     }
-                    Text("Questions: $questionCount (available: ${matchingQuestions.size})", style = MaterialTheme.typography.labelMedium)
+                    Text(stringResource(R.string.exams_q_count_avail, questionCount, matchingQuestions.size), style = MaterialTheme.typography.labelMedium)
                     Slider(
                         value = questionCount.toFloat(),
                         onValueChange = { questionCount = it.toInt() },
                         valueRange = 3f..30f
                     )
-                    Text("Duration: $durationMinutes min", style = MaterialTheme.typography.labelMedium)
+                    Text(stringResource(R.string.exams_duration_min, durationMinutes), style = MaterialTheme.typography.labelMedium)
                     Slider(
                         value = durationMinutes.toFloat(),
                         onValueChange = { durationMinutes = it.toInt() },
                         valueRange = 5f..90f
                     )
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                        Text("Allow revisiting previous questions", style = MaterialTheme.typography.bodySmall)
+                        Text(stringResource(R.string.exams_allow_revisit), style = MaterialTheme.typography.bodySmall)
                         Switch(checked = allowRevisit, onCheckedChange = { allowRevisit = it })
                     }
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                        Text("Show explanation after each item", style = MaterialTheme.typography.bodySmall)
+                        Text(stringResource(R.string.exams_show_exp), style = MaterialTheme.typography.bodySmall)
                         Switch(checked = showExplanationEach, onCheckedChange = { showExplanationEach = it })
                     }
                     Button(
                         onClick = {
                             val chosen = matchingQuestions.shuffled().take(questionCount)
                             viewModel.createAndStartExam(
-                                title = customTitle.ifBlank { "Custom Study Exam" },
+                                title = customTitle.ifBlank { customDefaultTitle },
                                 preset = ExamPreset.CUSTOM,
                                 selectedQuestions = chosen,
                                 durationMinutes = durationMinutes,
@@ -211,14 +276,17 @@ private fun ExamBuilderAndHistoryTab(
                     ) {
                         Icon(Icons.Rounded.PlayArrow, contentDescription = null)
                         Spacer(Modifier.width(6.dp))
-                        Text("Start Custom Exam")
+                        Text(stringResource(R.string.exams_start_custom))
                     }
                 }
             }
         }
 
         item {
-            SoraSectionHeader(title = "Smart Exam Presets", subtitle = "Tap any mode to launch immediately")
+            SoraSectionHeader(
+                title = stringResource(R.string.exams_presets_title),
+                subtitle = stringResource(R.string.exams_presets_sub)
+            )
         }
 
         items(ExamPreset.entries.filter { it != ExamPreset.CUSTOM }) { preset ->
@@ -234,7 +302,7 @@ private fun ExamBuilderAndHistoryTab(
             SoraSurfaceCard(
                 onClick = {
                     viewModel.createAndStartExam(
-                        title = preset.label,
+                        title = presetLabels[preset] ?: preset.label,
                         preset = preset,
                         selectedQuestions = subset,
                         durationMinutes = preset.durationMinutes,
@@ -247,17 +315,17 @@ private fun ExamBuilderAndHistoryTab(
             ) {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text(preset.label, style = MaterialTheme.typography.titleSmall)
-                        Text(preset.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(preset.localizedLabel(), style = MaterialTheme.typography.titleSmall)
+                        Text(preset.localizedDescription(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
-                    SoraStatusBadge("${subset.size} Q • ${preset.durationMinutes}m", SoraSoftBlue)
+                    SoraStatusBadge(stringResource(R.string.badge_q_min, subset.size, preset.durationMinutes), SoraSoftBlue)
                 }
             }
         }
 
         if (exams.isNotEmpty()) {
             item {
-                SoraSectionHeader(title = "Exam History & Results")
+                SoraSectionHeader(title = stringResource(R.string.exams_history_title))
             }
             items(exams, key = { it.id }) { rec ->
                 SoraSurfaceCard(
@@ -270,9 +338,9 @@ private fun ExamBuilderAndHistoryTab(
                             Text(rec.title, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             Text(
                                 if (rec.status == "SUBMITTED") {
-                                    "${rec.score}/${rec.totalMarks} pts • ${rec.correctCount} correct • ${rec.incorrectCount} missed"
+                                    stringResource(R.string.exams_score_line, rec.score, rec.totalMarks, rec.correctCount, rec.incorrectCount)
                                 } else {
-                                    "In progress • ${rec.questionIds.size} questions"
+                                    stringResource(R.string.exams_in_progress_line, rec.questionIds.size)
                                 },
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -281,7 +349,7 @@ private fun ExamBuilderAndHistoryTab(
                         if (rec.status == "SUBMITTED") {
                             SoraMasteryRing(progressPercent = rec.percentage.toInt(), size = 46.dp)
                         } else {
-                            SoraStatusBadge("Resume", SoraWarning)
+                            SoraStatusBadge(stringResource(R.string.exams_resume), SoraWarning)
                         }
                     }
                 }
@@ -306,18 +374,18 @@ private fun MistakeNotebookTab(
             item {
                 SoraEmptyState(
                     icon = Icons.Rounded.Verified,
-                    title = "Mistake Notebook Clear",
-                    subtitle = "Any questions missed in Practice or Exams appear here automatically for targeted remediation."
+                    title = stringResource(R.string.mistakes_empty_title),
+                    subtitle = stringResource(R.string.mistakes_empty_sub)
                 )
             }
         } else {
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                     Button(onClick = onStartMistakeExam, modifier = Modifier.weight(1f)) {
-                        Text("Mistake Exam")
+                        Text(stringResource(R.string.mistakes_exam_btn))
                     }
                     OutlinedButton(onClick = onPracticeMistakes, modifier = Modifier.weight(1f)) {
-                        Text("Practice Pool")
+                        Text(stringResource(R.string.mistakes_practice_btn))
                     }
                 }
             }
@@ -325,11 +393,11 @@ private fun MistakeNotebookTab(
                 SoraSurfaceCard(accentBorder = MaterialTheme.colorScheme.error, modifier = Modifier.fillMaxWidth()) {
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            SoraStatusBadge("Missed ${q.incorrectCount}x", MaterialTheme.colorScheme.error)
-                            Text("${q.bookTitle.take(20)} • Ch.${q.chapterNumber}", style = MaterialTheme.typography.labelSmall)
+                            SoraStatusBadge(stringResource(R.string.mistakes_missed_x, q.incorrectCount), MaterialTheme.colorScheme.error)
+                            Text(stringResource(R.string.mistake_book_ref, q.bookTitle.take(20), q.chapterNumber), style = MaterialTheme.typography.labelSmall)
                         }
                         Text(q.questionText, style = MaterialTheme.typography.titleSmall)
-                        Text("Answer: ${q.correctAnswer}", style = MaterialTheme.typography.bodySmall, color = SoraSuccess)
+                        Text(stringResource(R.string.qb_answer_prefix, q.correctAnswer), style = MaterialTheme.typography.bodySmall, color = SoraSuccess)
                         if (q.explanation.isNotBlank()) {
                             Text(q.explanation, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
@@ -337,7 +405,7 @@ private fun MistakeNotebookTab(
                             TextButton(onClick = { onMarkResolved(q) }) {
                                 Icon(Icons.Rounded.CheckCircle, contentDescription = null, modifier = Modifier.size(16.dp))
                                 Spacer(Modifier.width(4.dp))
-                                Text("Mark Understood")
+                                Text(stringResource(R.string.mistakes_mark_understood))
                             }
                         }
                     }
@@ -352,6 +420,8 @@ private fun MistakeNotebookTab(
 fun ExamSessionScreen(
     exam: ExamRecord,
     allQuestions: List<QuestionItem>,
+    evaluations: Map<String, AnswerEvaluation> = emptyMap(),
+    onRetakeMissed: (List<QuestionItem>) -> Unit = {},
     viewModel: SoraViewModel,
     onClose: () -> Unit
 ) {
@@ -366,26 +436,38 @@ fun ExamSessionScreen(
     }
 
     if (exam.status == "SUBMITTED") {
+        val reportSubtitle = stringResource(R.string.exam_results_title)
+        val unansweredLabel = stringResource(R.string.exam_unanswered)
+        val ansObj = remember(exam.answersJson) {
+            try { SoraJson.parseObject(exam.answersJson.ifBlank { "{}" }) } catch (_: Exception) { null }
+        }
+        val exportScoreLine = stringResource(R.string.exam_score_summary, exam.score, exam.totalMarks, exam.percentage.toInt())
+        val exportStatsLine = stringResource(R.string.exam_stats_summary, exam.correctCount, exam.incorrectCount, exam.unansweredCount, exam.timeSpentSeconds / 60, exam.timeSpentSeconds % 60)
+        val exportRecLine = stringResource(R.string.exam_recommended_rev, exam.recommendedRevision)
+        val exportYourAnsPrefix = stringResource(R.string.exam_your_answer, "")
+        val exportCorrectAnsPrefix = stringResource(R.string.qb_correct_ans_prefix, "")
+        val exportExpLabel = stringResource(R.string.qb_explanation_label)
+
         ExamResultsScreen(
             exam = exam,
             examQuestions = examQuestions,
+            evaluations = evaluations,
+            onRetakeMissed = onRetakeMissed,
             onExportPdf = {
                 val body = buildString {
-                    append("Score: ${exam.score}/${exam.totalMarks} (${exam.percentage.toInt()}%)\n")
-                    append("Correct: ${exam.correctCount} | Incorrect: ${exam.incorrectCount} | Unanswered: ${exam.unansweredCount}\n\n")
-                    append("Recommendation: ${exam.recommendedRevision}\n\n")
-                    val ansObj = try { JSONObject(exam.answersJson) } catch (_: Exception) { JSONObject() }
+                    append("$exportScoreLine\n$exportStatsLine\n\n$exportRecLine\n\n")
                     examQuestions.forEachIndexed { idx, q ->
+                        val ans = ansObj?.str(q.id)?.ifBlank { unansweredLabel } ?: unansweredLabel
                         append("${idx + 1}. ${q.questionText}\n")
-                        append("Your Answer: ${ansObj.optString(q.id, "(Blank)")}\n")
-                        append("Correct Answer: ${q.correctAnswer}\n")
-                        append("Explanation: ${q.explanation}\n\n")
+                        append("$exportYourAnsPrefix$ans\n")
+                        append("$exportCorrectAnsPrefix${q.correctAnswer}\n")
+                        append("$exportExpLabel: ${q.explanation}\n\n")
                     }
                 }
-                exportManager.sharePdf("${exam.title} Results", "SŌRA Exam Report", body)
+                exportManager.sharePdf(exam.title, reportSubtitle, body)
             },
             onPrint = {
-                exportManager.printStudyMaterial(exam.title, "Score: ${exam.percentage.toInt()}%", exam.recommendedRevision)
+                exportManager.printStudyMaterial(exam.title, exportScoreLine, exam.recommendedRevision)
             },
             onClose = onClose
         )
@@ -418,8 +500,9 @@ fun ExamSessionScreen(
                         Text(exam.title, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleMedium)
                         val mins = remainingSeconds / 60
                         val secs = remainingSeconds % 60
+                        val clock = SoraFormatters.ltrIsolate("%02d:%02d".format(mins, secs))
                         Text(
-                            "Time Left: %02d:%02d • ${answersMap.size}/${examQuestions.size} answered".format(mins, secs),
+                            stringResource(R.string.exam_time_left_str, clock, answersMap.size, examQuestions.size),
                             style = MaterialTheme.typography.labelSmall,
                             color = if (remainingSeconds < 60) MaterialTheme.colorScheme.error else SoraSoftBlue
                         )
@@ -427,7 +510,7 @@ fun ExamSessionScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = onClose) {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Exit exam")
+                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.cd_exit_exam))
                     }
                 },
                 actions = {
@@ -435,7 +518,7 @@ fun ExamSessionScreen(
                         onClick = { showConfirmSubmit = true },
                         modifier = Modifier.testTag("exam_submit_button")
                     ) {
-                        Text("Submit", fontWeight = FontWeight.Bold)
+                        Text(stringResource(R.string.exam_submit_btn), fontWeight = FontWeight.Bold)
                     }
                 }
             )
@@ -443,7 +526,11 @@ fun ExamSessionScreen(
     ) { innerPadding ->
         if (examQuestions.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize().padding(innerPadding), contentAlignment = Alignment.Center) {
-                SoraEmptyState(Icons.Rounded.Warning, "Exam Questions Unavailable", "Return and generate a new exam.")
+                SoraEmptyState(
+                    Icons.Rounded.Warning,
+                    stringResource(R.string.exam_empty_title),
+                    stringResource(R.string.exam_empty_sub)
+                )
             }
         } else {
             val q = examQuestions[currentIdx.coerceIn(0, examQuestions.lastIndex)]
@@ -480,15 +567,15 @@ fun ExamSessionScreen(
                             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                        SoraStatusBadge("Q${currentIdx + 1} • ${q.marks} pts", SoraViolet)
-                                        SoraStatusBadge(q.difficulty, SoraSoftBlue)
+                                        SoraStatusBadge(stringResource(R.string.exam_q_badge, currentIdx + 1, q.marks), SoraViolet)
+                                        SoraStatusBadge(localizedDifficulty(q.difficulty), SoraSoftBlue)
                                     }
                                     IconButton(onClick = {
                                         flaggedIds = if (isFlagged) flaggedIds - q.id else flaggedIds + q.id
                                     }) {
                                         Icon(
                                             if (isFlagged) Icons.Rounded.Flag else Icons.Rounded.OutlinedFlag,
-                                            contentDescription = "Flag question",
+                                            contentDescription = stringResource(R.string.cd_flag_question),
                                             tint = if (isFlagged) SoraWarning else MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     }
@@ -514,7 +601,7 @@ fun ExamSessionScreen(
                                         onValueChange = { txt ->
                                             answersMap = answersMap.toMutableMap().apply { put(q.id, txt) }
                                         },
-                                        label = { Text("Write your answer") },
+                                        label = { Text(stringResource(R.string.exam_write_answer)) },
                                         minLines = 3,
                                         modifier = Modifier.fillMaxWidth()
                                     )
@@ -523,7 +610,7 @@ fun ExamSessionScreen(
                                 if (exam.showExplanationEach && currentAns.isNotBlank()) {
                                     Surface(color = MaterialTheme.colorScheme.surfaceContainerHigh, shape = MaterialTheme.shapes.small) {
                                         Column(modifier = Modifier.padding(10.dp)) {
-                                            Text("Immediate Check: ${q.correctAnswer}", style = MaterialTheme.typography.labelMedium, color = SoraSuccess)
+                                            Text(stringResource(R.string.exam_immediate_check, q.correctAnswer), style = MaterialTheme.typography.labelMedium, color = SoraSuccess)
                                             if (q.explanation.isNotBlank()) Text(q.explanation, style = MaterialTheme.typography.bodySmall)
                                         }
                                     }
@@ -539,18 +626,18 @@ fun ExamSessionScreen(
                             onClick = { if (currentIdx > 0) currentIdx-- },
                             enabled = currentIdx > 0,
                             modifier = Modifier.weight(1f)
-                        ) { Text("Previous") }
+                        ) { Text(stringResource(R.string.action_previous)) }
                     }
                     if (currentIdx < examQuestions.lastIndex) {
                         Button(
                             onClick = { currentIdx++ },
                             modifier = Modifier.weight(1f)
-                        ) { Text("Next") }
+                        ) { Text(stringResource(R.string.action_next)) }
                     } else {
                         Button(
                             onClick = { showConfirmSubmit = true },
                             modifier = Modifier.weight(1f)
-                        ) { Text("Review & Submit") }
+                        ) { Text(stringResource(R.string.exam_review_submit)) }
                     }
                 }
             }
@@ -561,18 +648,26 @@ fun ExamSessionScreen(
         val unanswered = examQuestions.count { answersMap[it.id].isNullOrBlank() }
         AlertDialog(
             onDismissRequest = { showConfirmSubmit = false },
-            title = { Text("Submit Exam?") },
+            title = { Text(stringResource(R.string.exam_confirm_title)) },
             text = {
-                Text("Answered: ${examQuestions.size - unanswered}/${examQuestions.size}\nFlagged: ${flaggedIds.size}\nUnanswered: $unanswered\n\nOnce submitted, answers are graded and locked.")
+                Text(
+                    stringResource(
+                        R.string.exam_confirm_body,
+                        examQuestions.size - unanswered,
+                        examQuestions.size,
+                        flaggedIds.size,
+                        unanswered
+                    )
+                )
             },
             confirmButton = {
                 Button(onClick = {
                     showConfirmSubmit = false
                     viewModel.submitExam(exam, examQuestions, answersMap, flaggedIds, elapsedSeconds)
-                }) { Text("Submit Now") }
+                }) { Text(stringResource(R.string.exam_submit_now)) }
             },
             dismissButton = {
-                TextButton(onClick = { showConfirmSubmit = false }) { Text("Keep Working") }
+                TextButton(onClick = { showConfirmSubmit = false }) { Text(stringResource(R.string.exam_keep_working)) }
             }
         )
     }
@@ -583,38 +678,64 @@ fun ExamSessionScreen(
 private fun ExamResultsScreen(
     exam: ExamRecord,
     examQuestions: List<QuestionItem>,
+    evaluations: Map<String, AnswerEvaluation> = emptyMap(),
+    onRetakeMissed: (List<QuestionItem>) -> Unit = {},
     onExportPdf: () -> Unit,
     onPrint: () -> Unit,
     onClose: () -> Unit
 ) {
-    val ansJson = remember(exam.answersJson) {
-        try { JSONObject(exam.answersJson) } catch (_: Exception) { JSONObject() }
+    val ansObj = remember(exam.answersJson) {
+        try { SoraJson.parseObject(exam.answersJson.ifBlank { "{}" }) } catch (_: Exception) { null }
     }
     val analyticsObj = remember(exam.analyticsJson) {
-        try { JSONObject(exam.analyticsJson) } catch (_: Exception) { JSONObject() }
+        try { SoraJson.parseObject(exam.analyticsJson.ifBlank { "{}" }) } catch (_: Exception) { null }
     }
     val chapterPairs = remember(analyticsObj) {
-        val byCh = analyticsObj.optJSONObject("byChapter") ?: JSONObject()
-        byCh.keys().asSequence().map { key ->
-            val parts = byCh.optString(key, "0/1").split("/")
+        val byCh = analyticsObj?.obj("byChapter")
+        byCh?.entries?.map { (key, v) ->
+            val raw = (v as? JsonStr)?.value ?: "0/1"
+            val parts = raw.split("/")
             val c = parts.getOrNull(0)?.toFloatOrNull() ?: 0f
             val t = parts.getOrNull(1)?.toFloatOrNull()?.coerceAtLeast(1f) ?: 1f
             key to (c / t) * 100f
-        }.toList()
+        } ?: emptyList()
+    }
+
+    var reviewFilter by remember { mutableStateOf("ALL") } // ALL, INCORRECT, FLAGGED
+    val evalById = remember(examQuestions, ansObj, evaluations) {
+        examQuestions.associate { q ->
+            val userAns = ansObj?.str(q.id).orEmpty()
+            val ev = evaluations[q.id] ?: ExamEngine.evaluateOffline(q, userAns)
+            q.id to ev
+        }
+    }
+    val missedQuestions = remember(examQuestions, evalById) {
+        examQuestions.filter { evalById[it.id]?.isCorrect == false }
+    }
+    val flaggedQuestions = remember(examQuestions, exam.flaggedQuestionIds) {
+        val flaggedSet = exam.flaggedQuestionIds.toSet()
+        examQuestions.filter { flaggedSet.contains(it.id) }
+    }
+    val displayedQuestions = remember(examQuestions, missedQuestions, flaggedQuestions, reviewFilter) {
+        when (reviewFilter) {
+            "INCORRECT" -> missedQuestions
+            "FLAGGED" -> flaggedQuestions
+            else -> examQuestions
+        }
     }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Exam Results & Analytics") },
+                title = { Text(stringResource(R.string.exam_results_title)) },
                 navigationIcon = {
                     IconButton(onClick = onClose) {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Close results")
+                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.cd_close_results))
                     }
                 },
                 actions = {
-                    IconButton(onClick = onExportPdf) { Icon(Icons.Rounded.PictureAsPdf, contentDescription = "Export PDF") }
-                    IconButton(onClick = onPrint) { Icon(Icons.Rounded.Print, contentDescription = "Print results") }
+                    IconButton(onClick = onExportPdf) { Icon(Icons.Rounded.PictureAsPdf, contentDescription = stringResource(R.string.cd_export_pdf)) }
+                    IconButton(onClick = onPrint) { Icon(Icons.Rounded.Print, contentDescription = stringResource(R.string.cd_print_results)) }
                 }
             )
         }
@@ -630,13 +751,35 @@ private fun ExamResultsScreen(
                         SoraMasteryRing(progressPercent = exam.percentage.toInt(), size = 72.dp)
                         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Text(exam.title, style = MaterialTheme.typography.titleMedium)
-                            Text("Score: ${exam.score}/${exam.totalMarks} pts (${exam.percentage.toInt()}%)", style = MaterialTheme.typography.bodyMedium)
-                            Text("Correct: ${exam.correctCount} • Missed: ${exam.incorrectCount} • Blank: ${exam.unansweredCount} • ${exam.timeSpentSeconds / 60}m ${exam.timeSpentSeconds % 60}s", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(stringResource(R.string.exam_score_summary, exam.score, exam.totalMarks, exam.percentage.toInt()), style = MaterialTheme.typography.bodyMedium)
+                            Text(
+                                stringResource(
+                                    R.string.exam_stats_summary,
+                                    exam.correctCount,
+                                    exam.incorrectCount,
+                                    exam.unansweredCount,
+                                    exam.timeSpentSeconds / 60,
+                                    exam.timeSpentSeconds % 60
+                                ),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
                     }
                     if (exam.recommendedRevision.isNotBlank()) {
                         Spacer(Modifier.height(8.dp))
-                        Text("Recommended Revision: ${exam.recommendedRevision}", style = MaterialTheme.typography.bodySmall, color = SoraSoftBlue)
+                        Text(stringResource(R.string.exam_recommended_rev, exam.recommendedRevision), style = MaterialTheme.typography.bodySmall, color = SoraSoftBlue)
+                    }
+                    if (missedQuestions.isNotEmpty()) {
+                        Spacer(Modifier.height(10.dp))
+                        Button(
+                            onClick = { onRetakeMissed(missedQuestions) },
+                            modifier = Modifier.fillMaxWidth().testTag("retake_missed_button")
+                        ) {
+                            Icon(Icons.Rounded.Replay, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text(stringResource(R.string.exams_retake_missed, missedQuestions.size))
+                        }
                     }
                 }
             }
@@ -644,32 +787,78 @@ private fun ExamResultsScreen(
             if (chapterPairs.isNotEmpty()) {
                 item {
                     SoraSurfaceCard(modifier = Modifier.fillMaxWidth()) {
-                        Text("Accuracy by Chapter", style = MaterialTheme.typography.titleSmall)
+                        Text(stringResource(R.string.exam_accuracy_ch), style = MaterialTheme.typography.titleSmall)
                         Spacer(Modifier.height(8.dp))
                         SoraBarChart(entries = chapterPairs)
                     }
                 }
             }
 
-            item { Text("Detailed Answer Review", style = MaterialTheme.typography.titleMedium) }
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(stringResource(R.string.exam_detailed_review), style = MaterialTheme.typography.titleMedium)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FilterChip(
+                            selected = reviewFilter == "ALL",
+                            onClick = { reviewFilter = "ALL" },
+                            label = { Text(stringResource(R.string.exams_filter_all, examQuestions.size)) }
+                        )
+                        FilterChip(
+                            selected = reviewFilter == "INCORRECT",
+                            onClick = { reviewFilter = "INCORRECT" },
+                            label = { Text(stringResource(R.string.exams_filter_incorrect, missedQuestions.size)) }
+                        )
+                        FilterChip(
+                            selected = reviewFilter == "FLAGGED",
+                            onClick = { reviewFilter = "FLAGGED" },
+                            label = { Text(stringResource(R.string.exams_filter_flagged, flaggedQuestions.size)) }
+                        )
+                    }
+                }
+            }
 
-            itemsIndexed(examQuestions) { idx, q ->
-                val userAns = ansJson.optString(q.id, "")
-                val isCorrect = userAns.equals(q.correctAnswer, ignoreCase = true)
+            itemsIndexed(displayedQuestions, key = { _, q -> q.id }) { idx, q ->
+                val userAns = ansObj?.str(q.id).orEmpty()
+                val eval = evalById[q.id]
+                val isCorrect = eval?.isCorrect == true
                 SoraSurfaceCard(
                     accentBorder = if (isCorrect) SoraSuccess else MaterialTheme.colorScheme.error,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text("Q${idx + 1}. ${q.questionText}", style = MaterialTheme.typography.titleSmall)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                stringResource(R.string.exam_question_numbered, idx + 1, q.questionText),
+                                style = MaterialTheme.typography.titleSmall,
+                                modifier = Modifier.weight(1f)
+                            )
+                            if (eval?.gradedByAi == true) {
+                                SoraStatusBadge(stringResource(R.string.exams_ai_grading_badge), SoraViolet)
+                            }
+                        }
                         Text(
-                            "Your Answer: ${userAns.ifBlank { "(Unanswered)" }}",
+                            stringResource(R.string.exam_your_answer, userAns.ifBlank { stringResource(R.string.exam_unanswered) }),
                             style = MaterialTheme.typography.bodySmall,
                             color = if (isCorrect) SoraSuccess else MaterialTheme.colorScheme.error
                         )
-                        Text("Correct Answer: ${q.correctAnswer}", style = MaterialTheme.typography.bodySmall, color = SoraSuccess)
+                        Text(stringResource(R.string.qb_correct_ans_prefix, q.correctAnswer), style = MaterialTheme.typography.bodySmall, color = SoraSuccess)
+                        if (!eval?.feedback.isNullOrBlank()) {
+                            Text(
+                                stringResource(R.string.exams_eval_feedback, eval?.feedback.orEmpty()),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = SoraSoftBlue
+                            )
+                        }
                         if (q.explanation.isNotBlank()) {
-                            Text("Explanation (Ch.${q.chapterNumber}, p.${q.sourcePage}): ${q.explanation}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(
+                                stringResource(R.string.exam_explanation_ref, q.chapterNumber, q.sourcePage, q.explanation),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
                     }
                 }

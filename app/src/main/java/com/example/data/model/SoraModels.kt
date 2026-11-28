@@ -601,3 +601,75 @@ data class SmartRevisionItem(
     val estimatedMinutes: Int,
     val itemType: String // "MISTAKE", "FLASHCARD", "CHAPTER", "EXAM_PREP"
 )
+
+@Keep
+@IgnoreExtraProperties
+data class BookPageDoc(
+    @DocumentId val id: String = "",
+    val bookId: String = "",
+    val pageNumber: Long = 1L,
+    val text: String = "",
+    val extractionMethod: String = "TEXT",
+    val error: String = "",
+    val clientUpdatedAtMillis: Long = 0L,
+    @ServerTimestamp val createdAt: Timestamp? = null,
+    @ServerTimestamp val updatedAt: Timestamp? = null
+) {
+    fun toCreateMap(): Map<String, Any> = mapOf(
+        "bookId" to bookId.take(128),
+        "pageNumber" to pageNumber.coerceIn(1L, 5000L),
+        "text" to text.take(12000),
+        "extractionMethod" to extractionMethod.take(40),
+        "error" to error.take(400),
+        "clientUpdatedAtMillis" to clientUpdatedAtMillis.coerceAtLeast(0L),
+        "createdAt" to FieldValue.serverTimestamp(),
+        "updatedAt" to FieldValue.serverTimestamp()
+    )
+
+    fun toBookPageContent(): BookPageContent = BookPageContent(
+        pageNumber = pageNumber.toInt().coerceAtLeast(1),
+        text = text,
+        extractionMethod = extractionMethod,
+        error = error.takeIf { it.isNotBlank() }
+    )
+}
+
+@Keep
+@IgnoreExtraProperties
+data class SyncedUserPreferences(
+    @DocumentId val id: String = "",
+    val themeMode: String = "DARK",
+    val languageCode: String = "en",
+    val pomodoroWorkMinutes: Long = 25L,
+    val pomodoroShortBreakMinutes: Long = 5L,
+    val pomodoroLongBreakMinutes: Long = 15L,
+    val ambientFocusSound: Boolean = false,
+    val aiStrategy: String = "GEMINI_FIRST",
+    val aiFallbackEnabled: Boolean = true,
+    val ollamaModel: String = "qwen2.5:3b",
+    val ollamaVisionModel: String = "",
+    val geminiModel: String = "gemini-3.8-flash",
+    val aiTimeoutMs: Long = 60000L,
+    val clientUpdatedAtMillis: Long = 0L,
+    @ServerTimestamp val createdAt: Timestamp? = null,
+    @ServerTimestamp val updatedAt: Timestamp? = null
+) {
+    fun toCreateMap(): Map<String, Any> = mapOf(
+        "themeMode" to themeMode.take(20),
+        "languageCode" to languageCode.take(10),
+        "pomodoroWorkMinutes" to pomodoroWorkMinutes.coerceIn(5L, 120L),
+        "pomodoroShortBreakMinutes" to pomodoroShortBreakMinutes.coerceIn(1L, 30L),
+        "pomodoroLongBreakMinutes" to pomodoroLongBreakMinutes.coerceIn(5L, 60L),
+        "ambientFocusSound" to ambientFocusSound,
+        "aiStrategy" to aiStrategy.take(30),
+        "aiFallbackEnabled" to aiFallbackEnabled,
+        "ollamaModel" to ollamaModel.take(100),
+        "ollamaVisionModel" to ollamaVisionModel.take(100),
+        "geminiModel" to geminiModel.take(100),
+        "aiTimeoutMs" to aiTimeoutMs.coerceIn(5000L, 180000L),
+        "clientUpdatedAtMillis" to clientUpdatedAtMillis.coerceAtLeast(0L),
+        "createdAt" to FieldValue.serverTimestamp(),
+        "updatedAt" to FieldValue.serverTimestamp()
+    )
+}
+

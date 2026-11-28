@@ -333,27 +333,32 @@ fun UploadTextbookDialog(
     onPickImage: (title: String, subject: String, semester: String, folder: String) -> Unit,
     onSubmitText: (title: String, subject: String, semester: String, folder: String, text: String) -> Unit
 ) {
+    val defaultSubject = androidx.compose.ui.res.stringResource(com.example.R.string.label_general_studies)
+    val defaultSemester = androidx.compose.ui.res.stringResource(com.example.R.string.label_fall_semester)
+    val defaultFolder = androidx.compose.ui.res.stringResource(com.example.R.string.label_core_folder)
+    val defaultNotesTitle = androidx.compose.ui.res.stringResource(com.example.R.string.upload_default_notes_title)
+
     var title by remember { mutableStateOf("") }
-    var subject by remember { mutableStateOf(subjects.firstOrNull() ?: "General Studies") }
-    var semester by remember { mutableStateOf("Fall 2026") }
-    var folder by remember { mutableStateOf("Core") }
+    var subject by remember { mutableStateOf(subjects.firstOrNull() ?: defaultSubject) }
+    var semester by remember { mutableStateOf(defaultSemester) }
+    var folder by remember { mutableStateOf(defaultFolder) }
     var modePaste by remember { mutableStateOf(false) }
     var pastedText by remember { mutableStateOf("") }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Import Study Material") },
+        title = { Text(androidx.compose.ui.res.stringResource(com.example.R.string.upload_title)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
-                    "Supported: PDF textbooks, Scanned PDFs (AI OCR), DOCX, PPTX slides, Images, or Pasted Lecture Notes.",
+                    androidx.compose.ui.res.stringResource(com.example.R.string.upload_supported_hint),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 OutlinedTextField(
                     value = title,
                     onValueChange = { title = it },
-                    label = { Text("Title (optional for auto-detect)") },
+                    label = { Text(androidx.compose.ui.res.stringResource(com.example.R.string.upload_title_optional)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth().testTag("upload_title_input")
                 )
@@ -361,14 +366,14 @@ fun UploadTextbookDialog(
                     OutlinedTextField(
                         value = subject,
                         onValueChange = { subject = it },
-                        label = { Text("Subject") },
+                        label = { Text(androidx.compose.ui.res.stringResource(com.example.R.string.upload_subject)) },
                         singleLine = true,
                         modifier = Modifier.weight(1f)
                     )
                     OutlinedTextField(
                         value = semester,
                         onValueChange = { semester = it },
-                        label = { Text("Semester") },
+                        label = { Text(androidx.compose.ui.res.stringResource(com.example.R.string.upload_semester)) },
                         singleLine = true,
                         modifier = Modifier.weight(1f)
                     )
@@ -376,7 +381,7 @@ fun UploadTextbookDialog(
                 OutlinedTextField(
                     value = folder,
                     onValueChange = { folder = it },
-                    label = { Text("Folder / Tag") },
+                    label = { Text(androidx.compose.ui.res.stringResource(com.example.R.string.upload_folder)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -384,19 +389,19 @@ fun UploadTextbookDialog(
                     FilterChip(
                         selected = !modePaste,
                         onClick = { modePaste = false },
-                        label = { Text("File / Image") }
+                        label = { Text(androidx.compose.ui.res.stringResource(com.example.R.string.upload_mode_file)) }
                     )
                     FilterChip(
                         selected = modePaste,
                         onClick = { modePaste = true },
-                        label = { Text("Paste Notes / Text") }
+                        label = { Text(androidx.compose.ui.res.stringResource(com.example.R.string.upload_mode_paste)) }
                     )
                 }
                 if (modePaste) {
                     OutlinedTextField(
                         value = pastedText,
                         onValueChange = { pastedText = it },
-                        label = { Text("Paste textbook chapter or lecture notes") },
+                        label = { Text(androidx.compose.ui.res.stringResource(com.example.R.string.upload_paste_label)) },
                         minLines = 4,
                         maxLines = 8,
                         modifier = Modifier.fillMaxWidth().testTag("upload_paste_input")
@@ -410,7 +415,7 @@ fun UploadTextbookDialog(
                     onClick = {
                         if (pastedText.isNotBlank()) {
                             onSubmitText(
-                                title.ifBlank { "Study Notes" },
+                                title.ifBlank { defaultNotesTitle },
                                 subject,
                                 semester,
                                 folder,
@@ -421,7 +426,7 @@ fun UploadTextbookDialog(
                     enabled = pastedText.isNotBlank(),
                     modifier = Modifier.testTag("upload_paste_confirm")
                 ) {
-                    Text("Analyze Text")
+                    Text(androidx.compose.ui.res.stringResource(com.example.R.string.upload_analyze_text))
                 }
             } else {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -431,7 +436,7 @@ fun UploadTextbookDialog(
                     ) {
                         Icon(Icons.Rounded.Image, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(4.dp))
-                        Text("Image OCR")
+                        Text(androidx.compose.ui.res.stringResource(com.example.R.string.upload_image_ocr))
                     }
                     Button(
                         onClick = { onPickFile(title, subject, semester, folder) },
@@ -439,13 +444,15 @@ fun UploadTextbookDialog(
                     ) {
                         Icon(Icons.Rounded.UploadFile, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(4.dp))
-                        Text("Pick File")
+                        Text(androidx.compose.ui.res.stringResource(com.example.R.string.upload_pick_file))
                     }
                 }
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(onClick = onDismiss) {
+                Text(androidx.compose.ui.res.stringResource(com.example.R.string.action_cancel))
+            }
         }
     )
 }

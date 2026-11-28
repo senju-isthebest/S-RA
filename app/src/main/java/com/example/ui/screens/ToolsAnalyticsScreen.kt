@@ -11,8 +11,13 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import com.example.R
+import com.example.core.SoraFormatters
 import com.example.data.export.ExportManager
 import com.example.data.model.*
 import com.example.domain.StudentToolboxEngine
@@ -41,8 +46,8 @@ fun ToolsAnalyticsScreen(
 
     Column(modifier = Modifier.fillMaxSize()) {
         TabRow(selectedTabIndex = subTab) {
-            Tab(selected = subTab == 0, onClick = { subTab = 0 }, text = { Text("Analytics") })
-            Tab(selected = subTab == 1, onClick = { subTab = 1 }, text = { Text("Student Toolbox") })
+            Tab(selected = subTab == 0, onClick = { subTab = 0 }, text = { Text(stringResource(R.string.tools_tab_analytics)) })
+            Tab(selected = subTab == 1, onClick = { subTab = 1 }, text = { Text(stringResource(R.string.tools_tab_toolbox)) })
         }
 
         if (subTab == 0) {
@@ -98,6 +103,9 @@ private fun GlobalAnalyticsTab(
         focusSessions.sumOf { it.durationMinutes.toInt() }.coerceAtLeast(profile?.weeklyStudyMinutes?.toInt() ?: 0)
     }
 
+    val scholarFallback = stringResource(R.string.home_scholar_fallback)
+    val analyticsTitle = stringResource(R.string.analytics_title)
+
     LazyColumn(
         modifier = Modifier.fillMaxSize().testTag("analytics_list"),
         contentPadding = PaddingValues(16.dp),
@@ -106,21 +114,21 @@ private fun GlobalAnalyticsTab(
         item {
             SoraSurfaceCard(accentBorder = SoraViolet, modifier = Modifier.fillMaxWidth()) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Academic Mastery Analytics", style = MaterialTheme.typography.titleLarge)
+                    Text(analyticsTitle, style = MaterialTheme.typography.titleLarge)
                     Text(
-                        "Mastery Formula: 70% Question & Exam Accuracy + 30% Spaced-Repetition Recall. Passive reading time never inflates mastery.",
+                        stringResource(R.string.analytics_formula_note),
                         style = MaterialTheme.typography.bodySmall,
                         color = SoraSoftBlue
                     )
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                        StatMiniCard("Accuracy", "$accuracy%", "${attempted.size} items", Modifier.weight(1f))
-                        StatMiniCard("Recall", "$cardRetention%", "${reviewedCards.size} cards", Modifier.weight(1f))
-                        StatMiniCard("Exams", "$avgExamScore%", "${submittedExams.size} taken", Modifier.weight(1f))
+                        StatMiniCard(stringResource(R.string.analytics_acc), stringResource(R.string.home_percent_value, accuracy), stringResource(R.string.analytics_items_sub, attempted.size), Modifier.weight(1f))
+                        StatMiniCard(stringResource(R.string.analytics_recall), stringResource(R.string.home_percent_value, cardRetention), stringResource(R.string.analytics_cards_sub, reviewedCards.size), Modifier.weight(1f))
+                        StatMiniCard(stringResource(R.string.analytics_exams), stringResource(R.string.home_percent_value, avgExamScore), stringResource(R.string.analytics_taken_sub, submittedExams.size), Modifier.weight(1f))
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                        StatMiniCard("Focus", "${totalFocusMins}m", "${focusSessions.size} sessions", Modifier.weight(1f))
-                        StatMiniCard("Streak", "${profile?.studyStreakDays ?: 0}d", "Active days", Modifier.weight(1f))
-                        StatMiniCard("Notes", "${notes.size}", "${books.size} books", Modifier.weight(1f))
+                        StatMiniCard(stringResource(R.string.analytics_focus), stringResource(R.string.home_minutes_short, totalFocusMins), stringResource(R.string.analytics_sessions_sub, focusSessions.size), Modifier.weight(1f))
+                        StatMiniCard(stringResource(R.string.analytics_streak), stringResource(R.string.home_streak_days, profile?.studyStreakDays ?: 0), stringResource(R.string.analytics_active_days), Modifier.weight(1f))
+                        StatMiniCard(stringResource(R.string.analytics_notes), "${notes.size}", stringResource(R.string.analytics_books_sub, books.size), Modifier.weight(1f))
                     }
                 }
             }
@@ -129,7 +137,7 @@ private fun GlobalAnalyticsTab(
         if (books.isNotEmpty()) {
             item {
                 SoraSurfaceCard(modifier = Modifier.fillMaxWidth()) {
-                    Text("Mastery by Textbook", style = MaterialTheme.typography.titleSmall)
+                    Text(stringResource(R.string.analytics_by_book), style = MaterialTheme.typography.titleSmall)
                     Spacer(Modifier.height(10.dp))
                     SoraBarChart(entries = books.map { it.title.take(22) to it.masteryScore.toFloat() })
                 }
@@ -142,7 +150,7 @@ private fun GlobalAnalyticsTab(
         if (weakTopics.isNotEmpty()) {
             item {
                 SoraSurfaceCard(modifier = Modifier.fillMaxWidth()) {
-                    Text("Unresolved Mistakes by Topic", style = MaterialTheme.typography.titleSmall)
+                    Text(stringResource(R.string.analytics_mistakes_topic), style = MaterialTheme.typography.titleSmall)
                     Spacer(Modifier.height(10.dp))
                     SoraBarChart(
                         entries = weakTopics.map { it.key to it.value.size.toFloat() },
@@ -156,37 +164,36 @@ private fun GlobalAnalyticsTab(
         item {
             SoraSurfaceCard(modifier = Modifier.fillMaxWidth()) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Academic Export Center", style = MaterialTheme.typography.titleMedium)
-                    Text("Share or print a complete summary of your study notes, mistake report, and progress.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(stringResource(R.string.analytics_export_title), style = MaterialTheme.typography.titleMedium)
+                    Text(stringResource(R.string.analytics_export_sub), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                         Button(
                             onClick = {
                                 val report = buildString {
-                                    append("Accuracy: $accuracy% | Flashcard Recall: $cardRetention% | Avg Exam: $avgExamScore%\n")
-                                    append("Total Focus Time: ${totalFocusMins}m | Streak: ${profile?.studyStreakDays ?: 0} days\n\n")
-                                    append("## Textbooks\n")
-                                    books.forEach { append("- ${it.title} (${it.subjectName}): ${it.masteryScore}% mastery\n") }
-                                    append("\n## Study Notes\n")
+                                    append("Accuracy: $accuracy% | Recall: $cardRetention% | Avg Exam: $avgExamScore%\n")
+                                    append("Focus: ${totalFocusMins}m | Streak: ${profile?.studyStreakDays ?: 0}d\n\n")
+                                    books.forEach { append("- ${it.title} (${it.subjectName}): ${it.masteryScore}%\n") }
+                                    append("\n")
                                     notes.forEach { append("### ${it.title}\n${it.contentMarkdown}\n\n") }
                                 }
-                                exportManager.sharePdf("SŌRA Academic Portfolio", profile?.displayName ?: "Student", report)
+                                exportManager.sharePdf(analyticsTitle, profile?.displayName ?: scholarFallback, report)
                             },
                             modifier = Modifier.weight(1f)
                         ) {
                             Icon(Icons.Rounded.PictureAsPdf, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(Modifier.width(4.dp))
-                            Text("Export PDF")
+                            Text(stringResource(R.string.action_export_pdf))
                         }
                         OutlinedButton(
                             onClick = {
                                 val summary = "Accuracy: $accuracy% | Recall: $cardRetention% | Avg Exam: $avgExamScore% | Focus: ${totalFocusMins}m"
-                                exportManager.printStudyMaterial("SŌRA Academic Progress", profile?.displayName ?: "Student", summary)
+                                exportManager.printStudyMaterial(analyticsTitle, profile?.displayName ?: scholarFallback, summary)
                             },
                             modifier = Modifier.weight(1f)
                         ) {
                             Icon(Icons.Rounded.Print, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(Modifier.width(4.dp))
-                            Text("Print")
+                            Text(stringResource(R.string.action_print))
                         }
                     }
                 }
@@ -214,7 +221,15 @@ private fun StudentToolboxTab(
     aiBusyLabel: String?,
     viewModel: SoraViewModel
 ) {
-    val tools = listOf("Calculator", "AI Solver", "Grade Calc", "Formulas", "Units", "Word Count", "Citations")
+    val tools = listOf(
+        stringResource(R.string.tool_calc),
+        stringResource(R.string.tool_solver),
+        stringResource(R.string.tool_grade),
+        stringResource(R.string.tool_formulas),
+        stringResource(R.string.tool_units),
+        stringResource(R.string.tool_word_count),
+        stringResource(R.string.tool_citations)
+    )
     var selectedTool by remember { mutableIntStateOf(0) }
 
     LazyColumn(
@@ -246,19 +261,19 @@ private fun StudentToolboxTab(
             }
             2 -> item { GradeCalculatorCard() }
             3 -> {
-                item { Text("Core Academic Formulas", style = MaterialTheme.typography.titleMedium) }
+                item { Text(stringResource(R.string.formulas_core_title), style = MaterialTheme.typography.titleMedium) }
                 items(StudentToolboxEngine.formulaLibrary) { f ->
                     SoraSurfaceCard(modifier = Modifier.fillMaxWidth()) {
-                        SoraStatusBadge(f.category, SoraSoftBlue)
+                        SoraStatusBadge(localizedFormulaCategory(f.category), SoraSoftBlue)
                         Spacer(Modifier.height(4.dp))
                         Text(f.name, style = MaterialTheme.typography.titleSmall)
-                        Text(f.expression, style = MaterialTheme.typography.labelLarge, color = SoraViolet)
+                        Text(SoraFormatters.ltrIsolate(f.expression), style = MaterialTheme.typography.labelLarge, color = SoraViolet)
                         Text(f.variables, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
                 val bookFormulas = books.filter { it.formulaSheet.isNotBlank() }
                 if (bookFormulas.isNotEmpty()) {
-                    item { Text("Extracted Textbook Formula Sheets", style = MaterialTheme.typography.titleMedium) }
+                    item { Text(stringResource(R.string.formulas_extracted_title), style = MaterialTheme.typography.titleMedium) }
                     items(bookFormulas, key = { it.id }) { b ->
                         SoraSurfaceCard(accentBorder = SoraViolet, modifier = Modifier.fillMaxWidth()) {
                             Text(b.title, style = MaterialTheme.typography.titleSmall)
@@ -289,20 +304,23 @@ private fun ScientificCalculatorCard() {
     var resultText by remember { mutableStateOf<String?>(null) }
     var steps by remember { mutableStateOf<List<String>>(emptyList()) }
     var errorText by remember { mutableStateOf<String?>(null) }
+    val invalidMsg = stringResource(R.string.calc_invalid)
 
     SoraSurfaceCard(modifier = Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("Scientific Calculator & Step Trace", style = MaterialTheme.typography.titleMedium)
-            OutlinedTextField(
-                value = expr,
-                onValueChange = { expr = it },
-                label = { Text("Expression (e.g. sqrt(144) + 2^5 * sin(30))") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth().testTag("calc_input")
-            )
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                items(listOf("sin(", "cos(", "tan(", "sqrt(", "ln(", "log(", "^", "pi", "e", "(", ")")) { token ->
-                    SuggestionChip(onClick = { expr += token }, label = { Text(token) })
+            Text(stringResource(R.string.calc_title), style = MaterialTheme.typography.titleMedium)
+            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                OutlinedTextField(
+                    value = expr,
+                    onValueChange = { expr = it },
+                    label = { Text(stringResource(R.string.calc_hint)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth().testTag("calc_input")
+                )
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    items(listOf("sin(", "cos(", "tan(", "sqrt(", "ln(", "log(", "^", "pi", "e", "(", ")")) { token ->
+                        SuggestionChip(onClick = { expr += token }, label = { Text(token) })
+                    }
                 }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -317,12 +335,14 @@ private fun ScientificCalculatorCard() {
                             .onFailure {
                                 resultText = null
                                 steps = emptyList()
-                                errorText = it.message ?: "Invalid expression"
+                                errorText = it.message ?: invalidMsg
                             }
                     },
                     modifier = Modifier.weight(1f).testTag("calc_eval_button")
-                ) { Text("Calculate") }
-                OutlinedButton(onClick = { expr = ""; resultText = null; steps = emptyList(); errorText = null }) { Text("Clear") }
+                ) { Text(stringResource(R.string.calc_eval)) }
+                OutlinedButton(onClick = { expr = ""; resultText = null; steps = emptyList(); errorText = null }) {
+                    Text(stringResource(R.string.action_clear))
+                }
             }
             if (errorText != null) {
                 Text(errorText.orEmpty(), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
@@ -330,10 +350,10 @@ private fun ScientificCalculatorCard() {
             if (resultText != null) {
                 Surface(color = MaterialTheme.colorScheme.surfaceContainerHigh, shape = MaterialTheme.shapes.small, modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text("Result: $resultText", style = MaterialTheme.typography.titleLarge, color = SoraSuccess)
+                        Text(stringResource(R.string.calc_result, SoraFormatters.ltrIsolate(resultText.orEmpty())), style = MaterialTheme.typography.titleLarge, color = SoraSuccess)
                         if (steps.isNotEmpty()) {
-                            Text("Evaluation Steps:", style = MaterialTheme.typography.labelMedium)
-                            steps.forEachIndexed { idx, s -> Text("${idx + 1}. $s", style = MaterialTheme.typography.bodySmall) }
+                            Text(stringResource(R.string.calc_steps), style = MaterialTheme.typography.labelMedium)
+                            steps.forEachIndexed { idx, s -> Text("${idx + 1}. ${SoraFormatters.ltrIsolate(s)}", style = MaterialTheme.typography.bodySmall) }
                         }
                     }
                 }
@@ -352,11 +372,11 @@ private fun AiEquationSolverCard(
     var problem by remember { mutableStateOf("") }
     SoraSurfaceCard(accentBorder = SoraViolet, modifier = Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("AI Step-by-Step Equation & Problem Solver", style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.solver_title), style = MaterialTheme.typography.titleMedium)
             OutlinedTextField(
                 value = problem,
                 onValueChange = { problem = it },
-                label = { Text("Enter equation, derivative, stoichiometry, or physics problem") },
+                label = { Text(stringResource(R.string.solver_hint)) },
                 minLines = 2,
                 modifier = Modifier.fillMaxWidth().testTag("ai_solver_input")
             )
@@ -369,10 +389,10 @@ private fun AiEquationSolverCard(
                 ) {
                     Icon(Icons.Rounded.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(Modifier.width(6.dp))
-                    Text("Solve Step-by-Step")
+                    Text(stringResource(R.string.solver_btn))
                 }
                 if (solution != null) {
-                    TextButton(onClick = onClear) { Text("Clear") }
+                    TextButton(onClick = onClear) { Text(stringResource(R.string.action_clear)) }
                 }
             }
             if (!solution.isNullOrBlank()) {
@@ -408,37 +428,45 @@ private fun GradeCalculatorCard() {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         SoraSurfaceCard(modifier = Modifier.fillMaxWidth()) {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Weighted Course Grade", style = MaterialTheme.typography.titleMedium)
-                Text("Current Weighted Average: %.2f%% (Total Weight: %.0f%%)".format(weightedAvg, totalWeight), style = MaterialTheme.typography.titleSmall, color = SoraSuccess)
+                Text(stringResource(R.string.grade_title), style = MaterialTheme.typography.titleMedium)
+                Text(
+                    stringResource(R.string.grade_current_avg, "%.2f".format(weightedAvg), "%.0f".format(totalWeight)),
+                    style = MaterialTheme.typography.titleSmall,
+                    color = SoraSuccess
+                )
                 scores.forEachIndexed { i, (sc, wt) ->
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                        Text("Item ${i + 1}: $sc% (Weight $wt%)", style = MaterialTheme.typography.bodySmall)
+                        Text(stringResource(R.string.grade_item_row, i + 1, sc.toString(), wt.toString()), style = MaterialTheme.typography.bodySmall)
                         IconButton(onClick = { scores = scores.filterIndexed { idx, _ -> idx != i } }, modifier = Modifier.size(32.dp)) {
-                            Icon(Icons.Rounded.Close, contentDescription = "Remove item", modifier = Modifier.size(16.dp))
+                            Icon(Icons.Rounded.Close, contentDescription = stringResource(R.string.cd_remove_item), modifier = Modifier.size(16.dp))
                         }
                     }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(value = newScore, onValueChange = { newScore = it }, label = { Text("Score %") }, modifier = Modifier.weight(1f), singleLine = true)
-                    OutlinedTextField(value = newWeight, onValueChange = { newWeight = it }, label = { Text("Weight %") }, modifier = Modifier.weight(1f), singleLine = true)
+                    OutlinedTextField(value = newScore, onValueChange = { newScore = it }, label = { Text(stringResource(R.string.grade_score_label)) }, modifier = Modifier.weight(1f), singleLine = true)
+                    OutlinedTextField(value = newWeight, onValueChange = { newWeight = it }, label = { Text(stringResource(R.string.grade_weight_label)) }, modifier = Modifier.weight(1f), singleLine = true)
                     Button(onClick = {
                         val s = newScore.toDoubleOrNull()
                         val w = newWeight.toDoubleOrNull()
                         if (s != null && w != null && w > 0) scores = scores + (s to w)
-                    }) { Text("Add") }
+                    }) { Text(stringResource(R.string.action_add)) }
                 }
             }
         }
 
         SoraSurfaceCard(accentBorder = SoraSoftBlue, modifier = Modifier.fillMaxWidth()) {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Required Final Exam Score", style = MaterialTheme.typography.titleMedium)
+                Text(stringResource(R.string.grade_final_title), style = MaterialTheme.typography.titleMedium)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(value = currentAvg, onValueChange = { currentAvg = it }, label = { Text("Current %") }, modifier = Modifier.weight(1f), singleLine = true)
-                    OutlinedTextField(value = targetAvg, onValueChange = { targetAvg = it }, label = { Text("Target %") }, modifier = Modifier.weight(1f), singleLine = true)
-                    OutlinedTextField(value = finalWeight, onValueChange = { finalWeight = it }, label = { Text("Final Wt %") }, modifier = Modifier.weight(1f), singleLine = true)
+                    OutlinedTextField(value = currentAvg, onValueChange = { currentAvg = it }, label = { Text(stringResource(R.string.grade_current_label)) }, modifier = Modifier.weight(1f), singleLine = true)
+                    OutlinedTextField(value = targetAvg, onValueChange = { targetAvg = it }, label = { Text(stringResource(R.string.grade_target_label)) }, modifier = Modifier.weight(1f), singleLine = true)
+                    OutlinedTextField(value = finalWeight, onValueChange = { finalWeight = it }, label = { Text(stringResource(R.string.grade_final_wt_label)) }, modifier = Modifier.weight(1f), singleLine = true)
                 }
-                Text("Score needed on final exam: %.1f%%".format(requiredFinal), style = MaterialTheme.typography.titleSmall, color = if (requiredFinal > 100.0) SoraWarning else SoraSuccess)
+                Text(
+                    stringResource(R.string.grade_needed_result, "%.1f".format(requiredFinal)),
+                    style = MaterialTheme.typography.titleSmall,
+                    color = if (requiredFinal > 100.0) SoraWarning else SoraSuccess
+                )
             }
         }
     }
@@ -460,23 +488,28 @@ private fun UnitConverterCard() {
 
     SoraSurfaceCard(modifier = Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("Scientific Unit Converter", style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.units_title), style = MaterialTheme.typography.titleMedium)
             LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 items(StudentToolboxEngine.unitCategories.indices.toList()) { i ->
-                    FilterChip(selected = catIndex == i, onClick = { catIndex = i }, label = { Text(StudentToolboxEngine.unitCategories[i].name.substringBefore(" (")) })
+                    FilterChip(
+                        selected = catIndex == i,
+                        onClick = { catIndex = i },
+                        label = { Text(localizedUnitCategoryName(i, StudentToolboxEngine.unitCategories[i].name.substringBefore(" ("))) }
+                    )
                 }
             }
-            OutlinedTextField(value = inputVal, onValueChange = { inputVal = it }, label = { Text("Value") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-            Text("From:", style = MaterialTheme.typography.labelSmall)
+            OutlinedTextField(value = inputVal, onValueChange = { inputVal = it }, label = { Text(stringResource(R.string.units_value_label)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            Text(stringResource(R.string.units_from), style = MaterialTheme.typography.labelSmall)
             LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 items(unitKeys) { u -> FilterChip(selected = fromUnit == u, onClick = { fromUnit = u }, label = { Text(u) }) }
             }
-            Text("To:", style = MaterialTheme.typography.labelSmall)
+            Text(stringResource(R.string.units_to), style = MaterialTheme.typography.labelSmall)
             LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 items(unitKeys) { u -> FilterChip(selected = toUnit == u, onClick = { toUnit = u }, label = { Text(u) }) }
             }
+            val formattedConverted = "%.4f".format(converted).trimEnd('0').trimEnd('.')
             Text(
-                "$inputVal $fromUnit = %.4f $toUnit".format(converted).trimEnd('0').trimEnd('.'),
+                SoraFormatters.ltrIsolate(stringResource(R.string.unit_conversion_eq, inputVal, fromUnit, formattedConverted, toUnit)),
                 style = MaterialTheme.typography.titleMedium,
                 color = SoraSuccess
             )
@@ -491,19 +524,19 @@ private fun WordCounterCard() {
 
     SoraSurfaceCard(modifier = Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("Essay Word & Reading Time Counter", style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.wc_title), style = MaterialTheme.typography.titleMedium)
             OutlinedTextField(
                 value = text,
                 onValueChange = { text = it },
-                label = { Text("Paste essay or paragraph draft") },
+                label = { Text(stringResource(R.string.wc_hint)) },
                 minLines = 5,
                 maxLines = 10,
                 modifier = Modifier.fillMaxWidth()
             )
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                StatMiniCard("Words", "$words", "count", Modifier.weight(1f))
-                StatMiniCard("Chars", "$chars", "characters", Modifier.weight(1f))
-                StatMiniCard("Read Time", "${readMins}m", "@ 200 wpm", Modifier.weight(1f))
+                StatMiniCard(stringResource(R.string.wc_words), "$words", stringResource(R.string.wc_count_sub), Modifier.weight(1f))
+                StatMiniCard(stringResource(R.string.wc_chars), "$chars", stringResource(R.string.wc_chars_sub), Modifier.weight(1f))
+                StatMiniCard(stringResource(R.string.wc_read_time), stringResource(R.string.home_minutes_short, readMins), stringResource(R.string.wc_wpm_sub), Modifier.weight(1f))
             }
         }
     }
@@ -525,19 +558,19 @@ private fun CitationOrganizerCard(
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         SoraSurfaceCard(modifier = Modifier.fillMaxWidth()) {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Academic Citation Generator", style = MaterialTheme.typography.titleMedium)
+                Text(stringResource(R.string.cit_title), style = MaterialTheme.typography.titleMedium)
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     listOf("APA", "MLA", "CHICAGO", "IEEE").forEach { st ->
                         FilterChip(selected = style == st, onClick = { style = st }, label = { Text(st) })
                     }
                 }
-                OutlinedTextField(value = authors, onValueChange = { authors = it }, label = { Text("Author(s)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("Book / Paper Title") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = authors, onValueChange = { authors = it }, label = { Text(stringResource(R.string.cit_authors)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text(stringResource(R.string.cit_book_title)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(value = year, onValueChange = { year = it }, label = { Text("Year") }, modifier = Modifier.weight(1f), singleLine = true)
-                    OutlinedTextField(value = pages, onValueChange = { pages = it }, label = { Text("Pages") }, modifier = Modifier.weight(1f), singleLine = true)
+                    OutlinedTextField(value = year, onValueChange = { year = it }, label = { Text(stringResource(R.string.cit_year)) }, modifier = Modifier.weight(1f), singleLine = true)
+                    OutlinedTextField(value = pages, onValueChange = { pages = it }, label = { Text(stringResource(R.string.cit_pages)) }, modifier = Modifier.weight(1f), singleLine = true)
                 }
-                OutlinedTextField(value = publisher, onValueChange = { publisher = it }, label = { Text("Publisher / Journal") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = publisher, onValueChange = { publisher = it }, label = { Text(stringResource(R.string.cit_publisher)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 Button(
                     onClick = {
                         val formatted = StudentToolboxEngine.formatCitation(style, authors, title, year, publisher, pages)
@@ -546,7 +579,7 @@ private fun CitationOrganizerCard(
                     },
                     enabled = title.isNotBlank(),
                     modifier = Modifier.fillMaxWidth()
-                ) { Text("Generate & Save Citation") }
+                ) { Text(stringResource(R.string.cit_generate_btn)) }
             }
         }
 
@@ -559,7 +592,7 @@ private fun CitationOrganizerCard(
                         Text(c.formattedText, style = MaterialTheme.typography.bodySmall)
                     }
                     IconButton(onClick = { onDeleteCitation(c.id) }) {
-                        Icon(Icons.Rounded.DeleteOutline, contentDescription = "Delete citation", tint = MaterialTheme.colorScheme.error)
+                        Icon(Icons.Rounded.DeleteOutline, contentDescription = stringResource(R.string.cd_delete_citation), tint = MaterialTheme.colorScheme.error)
                     }
                 }
             }

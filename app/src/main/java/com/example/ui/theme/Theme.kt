@@ -7,8 +7,10 @@ import androidx.compose.material3.Shapes
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import com.example.core.AppLanguage
 
 private val SoraDarkColorScheme = darkColorScheme(
     primary = SoraViolet,
@@ -85,6 +87,7 @@ enum class SoraThemeMode {
 @Composable
 fun SoraTheme(
     themeMode: SoraThemeMode = SoraThemeMode.DARK,
+    appLanguage: AppLanguage = AppLanguage.ENGLISH,
     content: @Composable () -> Unit
 ) {
     val useDark = when (themeMode) {
@@ -92,10 +95,11 @@ fun SoraTheme(
         SoraThemeMode.LIGHT -> false
         SoraThemeMode.SYSTEM -> isSystemInDarkTheme()
     }
+    val typography = remember(appLanguage) { soraTypographyFor(appLanguage) }
 
     MaterialTheme(
         colorScheme = if (useDark) SoraDarkColorScheme else SoraLightColorScheme,
-        typography = SoraTypography,
+        typography = typography,
         shapes = SoraShapes,
         content = content
     )
