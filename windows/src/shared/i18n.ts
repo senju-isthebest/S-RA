@@ -9,13 +9,23 @@ export const DESKTOP_STRINGS = {
     tabSecurity: 'Sync & Security',
     openBookFile: 'Open Textbook File (.txt / .md / .pdf)',
     importPaste: 'Import Study Text',
+    deleteBook: 'Delete Book',
     askBook: 'Ask Across Whole Textbook',
+    analyzeChapters: 'Analyze Chapters (AI)',
     syncNow: 'Sync Now',
+    retryDeadLetters: 'Retry Failed Sync Items',
     privacyMode: 'Local-Only Privacy Mode',
     exportJson: 'Export Workspace JSON (No Secrets)',
     saveKey: 'Save Encrypted Gemini Key',
     hasKeySet: 'Encrypted Key Stored in Vault',
-    noKeySet: 'No Gemini Key Stored'
+    noKeySet: 'No Gemini Key Stored',
+    testOllama: 'Test Ollama',
+    authTitle: 'SŌRA Cloud Account',
+    signIn: 'Sign In',
+    signUp: 'Create Account',
+    signOut: 'Sign Out',
+    deleteAccount: 'Delete Account & Cloud Data',
+    deleteConfirmHint: 'Type DELETE to permanently erase account & cloud data'
   },
   ar: {
     appName: 'سُورا لسطح المكتب',
@@ -27,13 +37,23 @@ export const DESKTOP_STRINGS = {
     tabSecurity: 'المزامنة والأمان',
     openBookFile: 'فتح ملف كتاب (.txt / .md / .pdf)',
     importPaste: 'استيراد نص دراسي',
+    deleteBook: 'حذف الكتاب',
     askBook: 'اسأل عبر كامل الكتاب',
+    analyzeChapters: 'تحليل الفصول بالذكاء',
     syncNow: 'مزامنة الآن',
+    retryDeadLetters: 'إعادة محاولة المتعثرة',
     privacyMode: 'وضع الخصوصية المحلي فقط',
     exportJson: 'تصدير بيانات الدراسة JSON (دون أسرار)',
     saveKey: 'حفظ مفتاح Gemini المشفر',
     hasKeySet: 'المفتاح محفوظ ومشفر في الخزنة',
-    noKeySet: 'لا يوجد مفتاح Gemini محفوظ'
+    noKeySet: 'لا يوجد مفتاح Gemini محفوظ',
+    testOllama: 'اختبار Ollama',
+    authTitle: 'حساب سُورا السحابي',
+    signIn: 'تسجيل الدخول',
+    signUp: 'إنشاء حساب',
+    signOut: 'تسجيل الخروج',
+    deleteAccount: 'حذف الحساب والبيانات السحابية',
+    deleteConfirmHint: 'اكتب DELETE لحذف الحساب والبيانات نهائياً'
   }
 } as const;
 

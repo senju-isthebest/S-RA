@@ -19,13 +19,25 @@ class AiProviderRouter(
             AiRoutingStrategy.OLLAMA_ONLY -> listOf(AiProviderId.OLLAMA)
             AiRoutingStrategy.GEMINI_ONLY -> listOf(AiProviderId.GEMINI)
         }
-        return raw.distinct().filter { adapters.containsKey(it) }
+        return raw.distinct().filter { id ->
+            adapters.containsKey(id) && (!config.localOnlyPrivacyMode || id != AiProviderId.GEMINI)
+        }
     }
+
+    private fun emptyOrderError(config: AiProviderConfig): AiError.ConfigurationError =
+        if (config.localOnlyPrivacyMode) {
+            AiError.ConfigurationError(
+                AiProviderId.OLLAMA,
+                "Local-Only Privacy Mode blocks cloud Gemini requests. Configure local Ollama or switch AI strategy."
+            )
+        } else {
+            AiError.ConfigurationError(AiProviderId.GEMINI, "No AI adapters are configured.")
+        }
 
     suspend fun generateText(request: AiTextRequest, config: AiProviderConfig): AiResponse {
         val order = resolveOrder(config)
         if (order.isEmpty()) {
-            throw AiError.ConfigurationError(AiProviderId.GEMINI, "No AI adapters are configured.")
+            throw emptyOrderError(config)
         }
 
         val requiredCapability = if (request.jsonMode) AiCapability.JSON_MODE else AiCapability.TEXT_GENERATION
@@ -72,7 +84,7 @@ class AiProviderRouter(
     fun streamText(request: AiTextRequest, config: AiProviderConfig): Flow<String> = flow {
         val order = resolveOrder(config)
         if (order.isEmpty()) {
-            throw AiError.ConfigurationError(AiProviderId.GEMINI, "No AI adapters are configured.")
+            throw emptyOrderError(config)
         }
 
         val collectedErrors = mutableListOf<AiError>()
@@ -117,7 +129,7 @@ class AiProviderRouter(
     suspend fun generateVision(request: AiVisionRequest, config: AiProviderConfig): AiResponse {
         val order = resolveOrder(config)
         if (order.isEmpty()) {
-            throw AiError.ConfigurationError(AiProviderId.GEMINI, "No AI adapters are configured.")
+            throw emptyOrderError(config)
         }
         val collectedErrors = mutableListOf<AiError>()
 

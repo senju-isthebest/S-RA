@@ -263,6 +263,12 @@ class OllamaAdapter(
         if (!validation.isValid) {
             throw AiError.ConfigurationError(AiProviderId.OLLAMA, validation.errorMessage)
         }
+        if (config.localOnlyPrivacyMode && !validation.isLocalOrPrivate) {
+            throw AiError.ConfigurationError(
+                AiProviderId.OLLAMA,
+                "Local-Only Privacy Mode blocks remote Ollama servers. Use localhost or a local LAN endpoint."
+            )
+        }
         return validation.normalizedUrl
     }
 

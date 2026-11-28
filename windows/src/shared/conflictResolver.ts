@@ -1,4 +1,4 @@
-import type { Book, SyncOperation } from './models';
+import type { Book, SyncOperation } from './models.js';
 
 export const ConflictResolver = {
   mergeReadingPage(localPage: number, remotePage: number, localTs: number, remoteTs: number): { page: number; hadConflict: boolean } {

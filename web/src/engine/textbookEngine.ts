@@ -37,27 +37,37 @@ export function tokenizeBilingual(raw: string): string[] {
 export function parseUploadedTextBook(
   title: string,
   subjectName: string,
-  rawText: string
+  rawText: string,
+  explicitPages?: BookPage[]
 ): { book: Book; starterQuestions: QuestionItem[]; starterCards: Flashcard[] } {
   const cleaned = rawText.replace(/\r\n/g, '\n').trim();
-  const paragraphs = cleaned.split(/\n{2,}/).filter((p) => p.trim().length > 0);
   const pages: BookPage[] = [];
-  let buffer = '';
-  let pageNum = 1;
-
-  for (const para of paragraphs) {
-    if (buffer.length + para.length > 1400 && buffer.length > 0) {
-      pages.push({ pageNumber: pageNum++, text: buffer.trim() });
-      buffer = para;
-    } else {
-      buffer = buffer ? `${buffer}\n\n${para}` : para;
+  if (explicitPages && explicitPages.length > 0) {
+    for (const ep of explicitPages) {
+      pages.push({
+        pageNumber: ep.pageNumber,
+        text: ep.text.trim() || `[Page ${ep.pageNumber}]`
+      });
     }
-  }
-  if (buffer.trim()) {
-    pages.push({ pageNumber: pageNum, text: buffer.trim() });
-  }
-  if (pages.length === 0) {
-    pages.push({ pageNumber: 1, text: cleaned || title });
+  } else {
+    const paragraphs = cleaned.split(/\n{2,}/).filter((p) => p.trim().length > 0);
+    let buffer = '';
+    let pageNum = 1;
+
+    for (const para of paragraphs) {
+      if (buffer.length + para.length > 1400 && buffer.length > 0) {
+        pages.push({ pageNumber: pageNum++, text: buffer.trim() });
+        buffer = para;
+      } else {
+        buffer = buffer ? `${buffer}\n\n${para}` : para;
+      }
+    }
+    if (buffer.trim()) {
+      pages.push({ pageNumber: pageNum, text: buffer.trim() });
+    }
+    if (pages.length === 0) {
+      pages.push({ pageNumber: 1, text: cleaned || title });
+    }
   }
 
   const chapters: Chapter[] = [];
@@ -274,23 +284,159 @@ export function evaluateAnswerOffline(q: QuestionItem, userAnswer: string): Answ
       return evaluateOpenEndedRubric(q, raw, marks);
     }
     case 'MATCHING':
-    case 'ORDERING': {
-      const tPairs = normTarget.split(/[,;\n]/).map((s) => s.trim()).filter(Boolean);
-      const gPairs = normGiven.split(/[,;\n]/).map((s) => s.trim()).filter(Boolean);
-      const matched = tPairs.filter((p) => gPairs.includes(p)).length;
-      const ratio = tPairs.length ? matched / tPairs.length : 0;
-      const isRight = ratio >= 0.6;
-      return {
-        isCorrect: isRight,
-        scoreRatio: ratio,
-        awardedMarks: Math.round(marks * ratio),
-        feedback: `Matched ${matched}/${tPairs.length}`,
-        gradedByAi: false
-      };
-    }
+      return evaluateMatching(q.correctAnswer, raw, marks);
+    case 'ORDERING':
+      return evaluateOrdering(q.correctAnswer, raw, marks);
     default:
       return evaluateOpenEndedRubric(q, raw, marks);
   }
+}
+
+function normalizeEvalText(raw: string): string {
+  return normalizeBilingual(raw)
+    .replace(/[^\p{L}\p{N}\s.+\-/*=]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function splitMatchingPair(entry: string): [string, string] | null {
+  for (const sep of ['->', '=>', '→', '=', ':', '-']) {
+    const idx = entry.indexOf(sep);
+    if (idx > 0 && idx + sep.length < entry.length) {
+      const left = entry.slice(0, idx).trim();
+      const right = entry.slice(idx + sep.length).trim();
+      if (left && right) return [left, right];
+    }
+  }
+  return null;
+}
+
+function parseMatchingEntries(raw: string): {
+  byKey: Map<string, string>;
+  ambiguousKeys: Set<string>;
+  totalEntries: number;
+} {
+  const entries = raw.split(/[,;\n]/).map((s) => s.trim()).filter(Boolean);
+  const byKey = new Map<string, string>();
+  const ambiguousKeys = new Set<string>();
+  let parsedCount = 0;
+  for (const entry of entries) {
+    const split = splitMatchingPair(entry);
+    if (!split) continue;
+    const left = normalizeEvalText(split[0]);
+    const right = normalizeEvalText(split[1]);
+    if (!left || !right) continue;
+    parsedCount++;
+    const prev = byKey.get(left);
+    if (prev === undefined) {
+      byKey.set(left, right);
+    } else if (prev !== right) {
+      ambiguousKeys.add(left);
+    }
+  }
+  return { byKey, ambiguousKeys, totalEntries: Math.max(parsedCount, entries.length) };
+}
+
+function evaluateMatching(targetRaw: string, givenRaw: string, marks: number): AnswerEvaluation {
+  const targetParsed = parseMatchingEntries(targetRaw);
+  if (targetParsed.byKey.size === 0) {
+    const exact = normalizeEvalText(targetRaw) === normalizeEvalText(givenRaw);
+    return {
+      isCorrect: exact,
+      scoreRatio: exact ? 1 : 0,
+      awardedMarks: exact ? marks : 0,
+      feedback: exact ? 'Exact match' : 'Matching mismatch',
+      gradedByAi: false
+    };
+  }
+  const givenParsed = parseMatchingEntries(givenRaw);
+  let matched = 0;
+  for (const [k, expectedVal] of targetParsed.byKey.entries()) {
+    const actual = givenParsed.byKey.get(k);
+    if (actual !== undefined && !givenParsed.ambiguousKeys.has(k) && actual === expectedVal) {
+      matched++;
+    }
+  }
+  const denom = Math.max(targetParsed.byKey.size, givenParsed.totalEntries, 1);
+  const ratio = Math.max(0, Math.min(1, matched / denom));
+  const awarded = Math.min(marks, Math.max(0, Math.round(marks * ratio)));
+  return {
+    isCorrect: ratio >= 0.75,
+    scoreRatio: ratio,
+    awardedMarks: awarded,
+    feedback: `Matched ${matched}/${targetParsed.byKey.size} pairs`,
+    gradedByAi: false
+  };
+}
+
+function parseOrderingSequence(raw: string): string[] {
+  const prefixRe = /^\s*(?:\(?\d{1,2}\)?[.)]\s+|[-•*]\s+)/;
+  return raw
+    .split(/(?:->|→|>|[,;\n])+/)
+    .map((part) => normalizeEvalText(part.replace(prefixRe, '').trim()))
+    .filter(Boolean);
+}
+
+function evaluateOrdering(targetRaw: string, givenRaw: string, marks: number): AnswerEvaluation {
+  const targetSeq = parseOrderingSequence(targetRaw);
+  const givenSeq = parseOrderingSequence(givenRaw);
+  if (targetSeq.length <= 1) {
+    const exact = normalizeEvalText(targetRaw) === normalizeEvalText(givenRaw);
+    return {
+      isCorrect: exact,
+      scoreRatio: exact ? 1 : 0,
+      awardedMarks: exact ? marks : 0,
+      feedback: exact ? 'Exact order' : 'Incorrect order',
+      gradedByAi: false
+    };
+  }
+  if (givenSeq.length === targetSeq.length && targetSeq.every((v, i) => givenSeq[i] === v)) {
+    return {
+      isCorrect: true,
+      scoreRatio: 1,
+      awardedMarks: marks,
+      feedback: `Exact sequence match (${targetSeq.length}/${targetSeq.length})`,
+      gradedByAi: false
+    };
+  }
+  if (givenSeq.length === 0) {
+    return { isCorrect: false, scoreRatio: 0, awardedMarks: 0, feedback: 'No ordered steps detected', gradedByAi: false };
+  }
+
+  const denom = Math.max(targetSeq.length, givenSeq.length);
+  let exactPosHits = 0;
+  for (let i = 0; i < Math.min(targetSeq.length, givenSeq.length); i++) {
+    if (targetSeq[i] === givenSeq[i]) exactPosHits++;
+  }
+  const exactRatio = exactPosHits / denom;
+
+  const usedGiven = new Array<boolean>(givenSeq.length).fill(false);
+  const matchedGivenPos: number[] = [];
+  for (const tItem of targetSeq) {
+    const gIdx = givenSeq.findIndex((g, idx) => !usedGiven[idx] && g === tItem);
+    if (gIdx >= 0) {
+      usedGiven[gIdx] = true;
+      matchedGivenPos.push(gIdx);
+    }
+  }
+  let concordant = 0;
+  for (let i = 0; i < matchedGivenPos.length; i++) {
+    for (let j = i + 1; j < matchedGivenPos.length; j++) {
+      if (matchedGivenPos[i] < matchedGivenPos[j]) concordant++;
+    }
+  }
+  const totalPairs = (targetSeq.length * (targetSeq.length - 1)) / 2;
+  const pairOrderRatio = totalPairs > 0 ? (concordant / totalPairs) * (matchedGivenPos.length / denom) : 0;
+
+  const ratio = Math.max(0, Math.min(0.99, 0.6 * exactRatio + 0.4 * pairOrderRatio));
+  const awarded = Math.min(marks, Math.max(0, Math.round(marks * ratio)));
+  return {
+    isCorrect: ratio >= 0.75,
+    scoreRatio: ratio,
+    awardedMarks: awarded,
+    feedback: `${exactPosHits}/${targetSeq.length} in exact position`,
+    gradedByAi: false
+  };
 }
 
 function evaluateOpenEndedRubric(q: QuestionItem, raw: string, marks: number): AnswerEvaluation {

@@ -1,4 +1,4 @@
-import type { Book, BookPage, Chapter, QuestionItem, Flashcard, RetrievedPassage } from './models';
+import type { Book, BookPage, Chapter, QuestionItem, Flashcard, RetrievedPassage } from './models.js';
 
 const AR_DIACRITICS_RE = /[\u064B-\u065F\u0670\u0640]/g;
 const STOPWORDS = new Set([
@@ -83,22 +83,29 @@ export function retrievePassages(
 export function buildDesktopBook(
   title: string,
   subjectName: string,
-  rawText: string
+  rawText: string,
+  explicitPages?: BookPage[]
 ): { book: Book; questions: QuestionItem[]; flashcards: Flashcard[] } {
-  const paras = rawText.replace(/\r\n/g, '\n').split(/\n{2,}/).filter((p) => p.trim());
   const pages: BookPage[] = [];
-  let buf = '';
-  let pNum = 1;
-  for (const p of paras) {
-    if (buf.length + p.length > 1400 && buf) {
-      pages.push({ pageNumber: pNum++, text: buf.trim() });
-      buf = p;
-    } else {
-      buf = buf ? `${buf}\n\n${p}` : p;
+  if (explicitPages && explicitPages.length > 0) {
+    for (const ep of explicitPages) {
+      pages.push({ pageNumber: ep.pageNumber, text: ep.text.trim() || `[Page ${ep.pageNumber}]` });
     }
+  } else {
+    const paras = rawText.replace(/\r\n/g, '\n').split(/\n{2,}/).filter((p) => p.trim());
+    let buf = '';
+    let pNum = 1;
+    for (const p of paras) {
+      if (buf.length + p.length > 1400 && buf) {
+        pages.push({ pageNumber: pNum++, text: buf.trim() });
+        buf = p;
+      } else {
+        buf = buf ? `${buf}\n\n${p}` : p;
+      }
+    }
+    if (buf.trim()) pages.push({ pageNumber: pNum, text: buf.trim() });
+    if (pages.length === 0) pages.push({ pageNumber: 1, text: rawText || title });
   }
-  if (buf.trim()) pages.push({ pageNumber: pNum, text: buf.trim() });
-  if (pages.length === 0) pages.push({ pageNumber: 1, text: rawText || title });
 
   const chapters: Chapter[] = [];
   const step = Math.max(1, Math.ceil(pages.length / Math.min(4, pages.length)));

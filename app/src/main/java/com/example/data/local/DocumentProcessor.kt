@@ -29,6 +29,7 @@ import java.util.zip.Inflater
 import java.util.zip.ZipInputStream
 
 private const val TAG = "DocumentProcessor"
+internal const val MAX_INGEST_BYTES = 50L * 1024 * 1024 // 50 MB ingestion safety limit
 
 data class IngestionResult(
     val localBookId: String,
@@ -80,7 +81,58 @@ class DocumentProcessor(
                 if (p.error != null) put("error", p.error)
             })
         }
-        File(bookDir(localBookId), "pages.json").writeText(arr.toString())
+        writeFileAtomic(File(bookDir(localBookId), "pages.json"), arr.toString().toByteArray(Charsets.UTF_8))
+    }
+
+    private fun writeFileAtomic(target: File, bytes: ByteArray) {
+        target.parentFile?.mkdirs()
+        val tmp = File(target.parentFile, ".${target.name}.${System.nanoTime()}.tmp")
+        try {
+            FileOutputStream(tmp).use { it.write(bytes) }
+            if (target.exists()) target.delete()
+            if (!tmp.renameTo(target)) {
+                FileOutputStream(target).use { it.write(bytes) }
+                tmp.delete()
+            }
+        } catch (e: Exception) {
+            tmp.delete()
+            throw e
+        }
+    }
+
+    internal fun copyStreamWithLimit(
+        input: java.io.InputStream,
+        destFile: File,
+        maxBytes: Long = MAX_INGEST_BYTES
+    ): Boolean {
+        destFile.parentFile?.mkdirs()
+        val tmp = File(destFile.parentFile, ".${destFile.name}.${System.nanoTime()}.tmp")
+        return try {
+            val buffer = ByteArray(16 * 1024)
+            var total = 0L
+            FileOutputStream(tmp).use { output ->
+                while (true) {
+                    val read = input.read(buffer)
+                    if (read <= 0) break
+                    total += read
+                    if (total > maxBytes) {
+                        output.flush()
+                        tmp.delete()
+                        return false
+                    }
+                    output.write(buffer, 0, read)
+                }
+            }
+            if (destFile.exists()) destFile.delete()
+            if (!tmp.renameTo(destFile)) {
+                tmp.copyTo(destFile, overwrite = true)
+                tmp.delete()
+            }
+            true
+        } catch (e: Exception) {
+            tmp.delete()
+            throw e
+        }
     }
 
     fun loadPages(localBookId: String): List<BookPageContent> {
@@ -170,10 +222,8 @@ class DocumentProcessor(
         }
 
         val destFile = getLocalFile(localBookId, targetFileName)
-        context.contentResolver.openInputStream(uri)?.use { input ->
-            FileOutputStream(destFile).use { output ->
-                input.copyTo(output)
-            }
+        val withinLimit = context.contentResolver.openInputStream(uri)?.use { input ->
+            copyStreamWithLimit(input, destFile, MAX_INGEST_BYTES)
         } ?: return@withContext IngestionResult(
             localBookId = localBookId,
             sourceType = sourceType,
@@ -183,6 +233,18 @@ class DocumentProcessor(
             extractionStatus = "FAILED",
             extractionError = "Unable to open selected file stream."
         )
+
+        if (!withinLimit) {
+            return@withContext IngestionResult(
+                localBookId = localBookId,
+                sourceType = sourceType,
+                fileName = targetFileName,
+                pages = emptyList(),
+                failedPages = listOf(1),
+                extractionStatus = "FAILED",
+                extractionError = "Selected file exceeds the 50 MB size limit."
+            )
+        }
 
         when (sourceType) {
             "PDF" -> processPdfFile(localBookId, targetFileName, destFile, onProgress)
@@ -217,7 +279,7 @@ class DocumentProcessor(
         }
         val destFile = getLocalFile(localBookId, fileName)
         if (!destFile.exists()) {
-            destFile.writeText(cleaned)
+            writeFileAtomic(destFile, cleaned.toByteArray(Charsets.UTF_8))
         }
         val chunks = paginateText(cleaned, maxCharsPerPage = 1800)
         val pages = chunks.mapIndexed { idx, chunk ->
@@ -633,23 +695,62 @@ class DocumentProcessor(
         }
     }
 
-    private fun extractTextOperators(stream: String): String {
+    internal fun extractTextOperators(stream: String): String {
         val sb = StringBuilder()
         val btEtRegex = Regex("""BT(.*?)ET""", RegexOption.DOT_MATCHES_ALL)
-        val parenRegex = Regex("""\(([^()\\]*(?:\\.[^()\\]*)*)\)""")
+        val tokenRegex = Regex("""\(([^()\\]*(?:\\.[^()\\]*)*)\)|<([0-9A-Fa-f\s]+)>""")
         btEtRegex.findAll(stream).forEach { block ->
-            parenRegex.findAll(block.groupValues[1]).forEach { lit ->
-                val decoded = lit.groupValues[1]
-                    .replace("\\(", "(")
-                    .replace("\\)", ")")
-                    .replace("\\n", "\n")
-                    .replace("\\r", "")
-                    .replace("\\\\", "\\")
-                sb.append(decoded)
+            tokenRegex.findAll(block.groupValues[1]).forEach { tok ->
+                val parenGroup = tok.groups[1]?.value
+                val hexGroup = tok.groups[2]?.value
+                when {
+                    parenGroup != null -> {
+                        val decoded = parenGroup
+                            .replace("\\(", "(")
+                            .replace("\\)", ")")
+                            .replace("\\n", "\n")
+                            .replace("\\r", "")
+                            .replace("\\t", " ")
+                            .replace("\\\\", "\\")
+                        sb.append(decoded)
+                    }
+                    hexGroup != null -> {
+                        val decodedHex = decodePdfHexString(hexGroup)
+                        if (decodedHex.isNotEmpty()) sb.append(decodedHex)
+                    }
+                }
             }
             sb.append(" ")
         }
         return sb.toString().replace(Regex("\\s+"), " ").trim()
+    }
+
+    private fun decodePdfHexString(rawHex: String): String {
+        val clean = rawHex.filter { !it.isWhitespace() }
+        if (clean.isEmpty()) return ""
+        val padded = if (clean.length % 2 == 1) "${clean}0" else clean
+        val bytes = ByteArray(padded.length / 2) { idx ->
+            padded.substring(idx * 2, idx * 2 + 2).toIntOrNull(16)?.toByte() ?: 0
+        }
+        if (bytes.size >= 2 && (bytes[0].toInt() and 0xFF) == 0xFE && (bytes[1].toInt() and 0xFF) == 0xFF) {
+            return String(bytes, 2, bytes.size - 2, Charsets.UTF_16BE)
+        }
+        if (bytes.size >= 2 && (bytes[0].toInt() and 0xFF) == 0xFF && (bytes[1].toInt() and 0xFF) == 0xFE) {
+            return String(bytes, 2, bytes.size - 2, Charsets.UTF_16LE)
+        }
+        // Check if interleaved UTF-16BE without BOM (common in PDF CID streams with ASCII chars)
+        val hasNullHighBytes = bytes.size >= 4 && bytes.size % 2 == 0 &&
+            (0 until bytes.size step 2).all { bytes[it].toInt() == 0 }
+        return if (hasNullHighBytes) {
+            String(bytes, Charsets.UTF_16BE)
+        } else {
+            buildString(bytes.size) {
+                for (b in bytes) {
+                    val v = b.toInt() and 0xFF
+                    if (v in 32..126 || v >= 160 || v == 10 || v == 9) append(v.toChar())
+                }
+            }
+        }
     }
 
     private fun paginateText(text: String, maxCharsPerPage: Int): List<String> {

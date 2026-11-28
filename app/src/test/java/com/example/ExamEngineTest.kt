@@ -156,4 +156,38 @@ class ExamEngineTest {
         cache.clearAll()
         assertTrue(cache.loadAll().isEmpty())
     }
+
+    @Test
+    fun `matching and ordering enforce partial credit threshold, duplicate-poison protection, and numeric step preservation`() {
+        val matching4 = QuestionItem(
+            id = "m4",
+            questionType = "MATCHING",
+            correctAnswer = "A-2, B-1, C-3, D-4",
+            marks = 4L
+        )
+        // 3/4 correct (0.75) passes >= 0.75 threshold
+        val partial3 = ExamEngine.evaluateOffline(matching4, "A-2, B-1, C-3, D-1")
+        assertTrue(partial3.isCorrect)
+        assertEquals(0.75, partial3.scoreRatio, 0.01)
+        assertEquals(3L, partial3.awardedMarks)
+
+        // Duplicate-key poisoning must not inflate score
+        val poisoned = ExamEngine.evaluateOffline(matching4, "A-2, A-2, A-2, A-2")
+        assertFalse(poisoned.isCorrect)
+        assertEquals(0.25, poisoned.scoreRatio, 0.01)
+
+        // Ordering numeric sequence preservation (arrows and commas)
+        val ordering = QuestionItem(
+            id = "o1",
+            questionType = "ORDERING",
+            correctAnswer = "1995 -> 2005 -> 2015 -> 2025",
+            marks = 4L
+        )
+        val exactOrder = ExamEngine.evaluateOffline(ordering, "1995 -> 2005 -> 2015 -> 2025")
+        assertTrue(exactOrder.isCorrect)
+        assertEquals(4L, exactOrder.awardedMarks)
+
+        val reversedOrder = ExamEngine.evaluateOffline(ordering, "2025 -> 2015 -> 2005 -> 1995")
+        assertFalse(reversedOrder.isCorrect)
+    }
 }

@@ -66,6 +66,13 @@ object EndpointValidator {
         if (uri.port != -1 && (uri.port < 1 || uri.port > 65535)) {
             return EndpointValidationResult(false, errorMessage = "Endpoint port must be between 1 and 65535.")
         }
+        if (isBlockedHost(host)) {
+            return EndpointValidationResult(
+                isValid = false,
+                isLocalOrPrivate = false,
+                errorMessage = "Endpoint host '$host' is blocked by SSRF security policy."
+            )
+        }
 
         val isLocal = isLocalOrPrivateHost(host)
         if (scheme == "http" && !isLocal) {
@@ -88,8 +95,29 @@ object EndpointValidator {
         )
     }
 
+    fun isBlockedHost(host: String): Boolean {
+        val h = host.lowercase().removePrefix("[").removeSuffix("]")
+        if (h.isBlank() || h == "0.0.0.0" || h == "::" || h == "0:0:0:0:0:0:0:0") return true
+        if (h == "metadata" || h == "metadata.google.internal" || h == "instance-data") return true
+        if (h.endsWith(".metadata.google.internal")) return true
+        if (h.startsWith("fe80:") || h.startsWith("::ffff:")) return true
+        val parts = h.split(".")
+        if (parts.size == 4) {
+            val octets = parts.map { it.toIntOrNull() }
+            if (octets.all { it != null && it in 0..255 }) {
+                val a = octets[0]!!
+                val b = octets[1]!!
+                if (a == 0) return true
+                if (a == 169 && b == 254) return true
+                if (a in 224..239) return true
+            }
+        }
+        return false
+    }
+
     fun isLocalOrPrivateHost(host: String): Boolean {
         val h = host.lowercase().removePrefix("[").removeSuffix("]")
+        if (isBlockedHost(h)) return false
         if (h == "localhost" || h == "127.0.0.1" || h == "::1" || h == "10.0.2.2") return true
         if (h.endsWith(".local")) return true
 

@@ -9,8 +9,10 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
 import java.io.BufferedReader
+import java.io.IOException
 import java.io.InputStreamReader
 import java.net.HttpURLConnection
+import java.net.URI
 import java.net.URL
 
 data class HttpRequest(
@@ -36,9 +38,23 @@ class HttpUrlConnectionTransport(
     private val maxResponseBytes: Int = 4 * 1024 * 1024
 ) : AiHttpTransport {
 
-    override suspend fun execute(request: HttpRequest): HttpResponse = withContext(Dispatchers.IO) {
+    private fun openValidatedConnection(request: HttpRequest): HttpURLConnection {
+        val parsed = try {
+            URI(request.url.trim())
+        } catch (e: Exception) {
+            throw IOException("Malformed request URL: ${e.message}", e)
+        }
+        val scheme = parsed.scheme?.lowercase().orEmpty()
+        val host = parsed.host?.lowercase().orEmpty()
+        if ((scheme != "http" && scheme != "https") || host.isBlank()) {
+            throw IOException("Unsupported or invalid URL scheme/host for AI transport.")
+        }
+        if (EndpointValidator.isBlockedHost(host)) {
+            throw IOException("Target host '$host' is blocked by SSRF security policy.")
+        }
         val timeout = request.timeoutMs.coerceIn(2_000L, 180_000L).toInt()
-        val conn = (URL(request.url).openConnection() as HttpURLConnection).apply {
+        return (URL(request.url).openConnection() as HttpURLConnection).apply {
+            instanceFollowRedirects = false
             requestMethod = request.method
             connectTimeout = timeout.coerceAtMost(15_000)
             readTimeout = timeout
@@ -52,6 +68,10 @@ class HttpUrlConnectionTransport(
                 }
             }
         }
+    }
+
+    override suspend fun execute(request: HttpRequest): HttpResponse = withContext(Dispatchers.IO) {
+        val conn = openValidatedConnection(request)
 
         try {
             currentCoroutineContext().ensureActive()
@@ -61,6 +81,9 @@ class HttpUrlConnectionTransport(
                 }
             }
             val code = conn.responseCode
+            if (code in 300..399) {
+                throw IOException("HTTP redirects (HTTP $code) are disabled for security.")
+            }
             val stream = if (code in 200..299) conn.inputStream else (conn.errorStream ?: conn.inputStream)
             val bodyText = stream?.use { input ->
                 val bytes = ByteArray(8192)
@@ -94,21 +117,7 @@ class HttpUrlConnectionTransport(
     }
 
     override fun streamLines(request: HttpRequest): Flow<String> = flow {
-        val timeout = request.timeoutMs.coerceIn(2_000L, 180_000L).toInt()
-        val conn = (URL(request.url).openConnection() as HttpURLConnection).apply {
-            requestMethod = request.method
-            connectTimeout = timeout.coerceAtMost(15_000)
-            readTimeout = timeout
-            doInput = true
-            useCaches = false
-            request.headers.forEach { (k, v) -> setRequestProperty(k, v) }
-            if (request.body != null) {
-                doOutput = true
-                if (!request.headers.keys.any { it.equals("Content-Type", ignoreCase = true) }) {
-                    setRequestProperty("Content-Type", "application/json; charset=utf-8")
-                }
-            }
-        }
+        val conn = openValidatedConnection(request)
 
         try {
             currentCoroutineContext().ensureActive()
@@ -118,6 +127,9 @@ class HttpUrlConnectionTransport(
                 }
             }
             val code = conn.responseCode
+            if (code in 300..399) {
+                throw IOException("HTTP redirects (HTTP $code) are disabled for security.")
+            }
             if (code !in 200..299) {
                 val errBody = conn.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
                 throw HttpStatusException(code, errBody)

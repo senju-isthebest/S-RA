@@ -539,5 +539,174 @@ test("Synced BookPageDoc and SyncedUserPreferences enforce ownership and block s
         updatedAt: now,
       })
   );
+
+  // Generic apiKey field must also be rejected
+  await assertFails(
+    aliceDb
+      .collection("users")
+      .doc(ALICE_UID)
+      .collection("preferences")
+      .doc("bad_api_key")
+      .set({
+        themeMode: "DARK",
+        languageCode: "en",
+        pomodoroWorkMinutes: 25,
+        pomodoroShortBreakMinutes: 5,
+        pomodoroLongBreakMinutes: 15,
+        ambientFocusSound: false,
+        aiStrategy: "GEMINI_FIRST",
+        aiFallbackEnabled: true,
+        ollamaModel: "qwen2.5:3b",
+        geminiModel: "gemini-3.8-flash",
+        apiKey: "sk-leak",
+        aiTimeoutMs: 60000,
+        clientUpdatedAtMillis: Date.now() - 2000,
+        createdAt: now,
+        updatedAt: now,
+      })
+  );
+});
+
+test("Adversarial semantic invariants, list element types, and cross-user delete protection", async () => {
+  const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
+  const bobDb = testEnv.authenticatedContext(BOB_UID).firestore();
+  const now = new Date(Date.now() - 2500);
+
+  const bookRef = aliceDb
+    .collection("users")
+    .doc(ALICE_UID)
+    .collection("books")
+    .doc("book_valid");
+
+  await assertSucceeds(
+    bookRef.set({
+      title: "Linear Algebra",
+      subjectName: "Math",
+      sourceType: "PDF",
+      localBookId: "book_valid",
+      totalPages: 20,
+      processedPages: 20,
+      currentPage: 1,
+      extractionStatus: "COMPLETE",
+      archived: false,
+      masteryScore: 0,
+      bookmarkedPages: [1, 3, 7],
+      createdAt: now,
+      updatedAt: now,
+    })
+  );
+
+  // Reject wrong element type at index 1 in bookmarkedPages
+  await assertFails(
+    bookRef.update({
+      bookmarkedPages: [1, "bad-page"],
+      updatedAt: new Date(Date.now() - 1000),
+    })
+  );
+
+  // Reject processedPages > totalPages when totalPages > 0
+  await assertFails(
+    bookRef.update({
+      processedPages: 25,
+      updatedAt: new Date(Date.now() - 1000),
+    })
+  );
+
+  // Reject chapter where endPage < startPage
+  await assertFails(
+    bookRef.collection("chapters").doc("ch_bad_range").set({
+      bookId: "book_valid",
+      chapterNumber: 1,
+      title: "Vectors",
+      startPage: 15,
+      endPage: 5,
+      estimatedStudyMinutes: 30,
+      masteryScore: 0,
+      masteryStatus: "NOT_STARTED",
+      createdAt: now,
+      updatedAt: now,
+    })
+  );
+
+  // Reject exam where score > totalMarks
+  await assertFails(
+    aliceDb
+      .collection("users")
+      .doc(ALICE_UID)
+      .collection("exams")
+      .doc("exam_bad_score")
+      .set({
+        title: "Over-scored Exam",
+        preset: "QUICK_QUIZ",
+        bookIds: ["book_valid"],
+        questionIds: ["q_1"],
+        durationMinutes: 15,
+        totalMarks: 10,
+        allowRevisit: true,
+        showExplanationEach: false,
+        status: "SUBMITTED",
+        score: 99,
+        percentage: 100.0,
+        correctCount: 1,
+        incorrectCount: 0,
+        unansweredCount: 0,
+        timeSpentSeconds: 60,
+        createdAt: now,
+        updatedAt: now,
+      })
+  );
+
+  // Cross-user delete must be denied
+  await assertFails(
+    bobDb
+      .collection("users")
+      .doc(ALICE_UID)
+      .collection("books")
+      .doc("book_valid")
+      .delete()
+  );
+
+  // Full Chapter with all 13 string-list fields must pass create & update cleanly without CEL expression overflow
+  const fullChapRef = bookRef.collection("chapters").doc("ch_full");
+  await assertSucceeds(
+    fullChapRef.set({
+      bookId: "book_valid",
+      chapterNumber: 2,
+      title: "Eigenvalues and Eigenvectors",
+      startPage: 10,
+      endPage: 20,
+      estimatedStudyMinutes: 45,
+      masteryScore: 60,
+      masteryStatus: "LEARNING",
+      userGoal: "Master diagonalization",
+      quickSummary: "Core summary",
+      detailedSummary: "Detailed notes",
+      bulletSummary: "- Point 1",
+      examRevisionSummary: "Check det(A - lambda I) = 0",
+      learningObjectives: ["Compute eigenvalues", "Diagonalize matrices"],
+      mainTopics: ["Characteristic polynomial", "Eigenspaces"],
+      prerequisites: ["Determinants"],
+      keyConcepts: ["Eigenvalue", "Eigenvector"],
+      importantDefinitions: ["Spectrum"],
+      importantFacts: ["Trace equals sum of eigenvalues"],
+      importantDates: ["1829"],
+      formulas: ["Av = lambda v"],
+      examples: ["2x2 symmetric matrix"],
+      misconceptions: ["Zero eigenvalue means zero eigenvector"],
+      comparisons: ["Symmetric vs Hermitian"],
+      difficultSections: ["Jordan blocks"],
+      relatedChapters: ["Ch. 1"],
+      conceptMapJson: "{\"nodes\":[]}",
+      createdAt: now,
+      updatedAt: now,
+    })
+  );
+  await assertSucceeds(
+    fullChapRef.update({
+      masteryScore: 90,
+      masteryStatus: "MASTERED",
+      updatedAt: new Date(Date.now() - 500),
+    })
+  );
 });
 

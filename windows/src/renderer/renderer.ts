@@ -1,13 +1,22 @@
 interface SoraDesktopBridge {
   loadState(): Promise<DesktopRendererState>;
   saveState(state: DesktopRendererState): Promise<boolean>;
-  openBookFile(): Promise<DesktopBook | null>;
+  openBookFile(): Promise<{ book: DesktopBook | null; error: string | null }>;
+  deleteBook(bookId: string): Promise<boolean>;
   askBook(bookId: string, query: string): Promise<{ passages: Array<{ chapterNumber: number; pageNumber: number; excerpt: string }>; answer: string }>;
+  analyzeChapters(bookId: string): Promise<DesktopBook>;
+  testOllama(): Promise<{ ok: boolean; models: string[]; message: string }>;
   evaluateExamAnswer(question: DesktopQuestion, answer: string): Promise<{ isCorrect: boolean; feedback: string }>;
   setSecret(keyName: string, value: string): Promise<boolean>;
   getSecretStatus(keyName: string): Promise<boolean>;
   exportJson(): Promise<string | null>;
-  syncNow(): Promise<{ status: string; pendingCount: number }>;
+  authStatus(): Promise<{ configured: boolean; signedIn: boolean; uid: string; email: string; displayName: string }>;
+  authSignIn(email: string, password: string): Promise<{ uid: string; email: string; displayName: string }>;
+  authSignUp(email: string, password: string, displayName: string): Promise<{ uid: string; email: string; displayName: string }>;
+  authSignOut(): Promise<boolean>;
+  authDeleteAccount(confirmText: string): Promise<boolean>;
+  retryDeadLetters(): Promise<number>;
+  syncNow(): Promise<{ status: string; pendingCount: number; deadLetterCount?: number; lastError?: string }>;
 }
 
 interface DesktopBook {
@@ -17,6 +26,7 @@ interface DesktopBook {
   totalPages: number;
   currentPage: number;
   bookmarkedPages: number[];
+  chapters: Array<{ chapterNumber: number; title: string; summary?: string }>;
   pages: Array<{ pageNumber: number; text: string }>;
 }
 
@@ -68,7 +78,9 @@ let state: DesktopRendererState = {
 };
 let selectedBookId = '';
 let qaOutput = '';
+let statusBanner = '';
 let syncOutput = 'IDLE';
+let authInfo = { configured: false, signedIn: false, uid: '', email: '', displayName: '' };
 
 function applyDir(): void {
   document.documentElement.lang = state.language;
@@ -133,13 +145,24 @@ function render(): void {
   const body = el('div', '', 'card');
   const currentBook = state.books.find((b) => b.id === selectedBookId) ?? state.books[0];
 
+  if (statusBanner) {
+    const bannerEl = el('div', statusBanner, 'passage');
+    body.append(bannerEl);
+  }
+
   if (activeTab === 'library') {
     const openBtn = el('button', isAr ? 'فتح ملف كتاب (.txt / .md / .pdf)' : 'Open Textbook File (.txt / .md / .pdf)', 'primary');
     openBtn.onclick = async () => {
-      const imported = await window.soraDesktop?.openBookFile();
-      if (imported) {
+      const res = await window.soraDesktop?.openBookFile();
+      if (res?.error) {
+        statusBanner = res.error;
+        render();
+        return;
+      }
+      if (res?.book) {
+        statusBanner = '';
         state = (await window.soraDesktop?.loadState()) ?? state;
-        selectedBookId = imported.id;
+        selectedBookId = res.book.id;
         activeTab = 'reader';
         render();
       }
@@ -153,7 +176,14 @@ function render(): void {
         activeTab = 'reader';
         render();
       };
-      row.append(btn);
+      const delBtn = el('button', isAr ? 'حذف الكتاب' : 'Delete');
+      delBtn.onclick = async () => {
+        await window.soraDesktop?.deleteBook(b.id);
+        state = (await window.soraDesktop?.loadState()) ?? state;
+        if (selectedBookId === b.id) selectedBookId = state.books[0]?.id ?? '';
+        render();
+      };
+      row.append(btn, delBtn);
       body.append(row);
     });
   } else if (activeTab === 'reader') {
@@ -163,6 +193,19 @@ function render(): void {
       body.append(el('h3', `${currentBook.title} — p.${currentBook.currentPage}/${currentBook.totalPages}`));
       const pageObj = currentBook.pages[currentBook.currentPage - 1];
       body.append(el('p', pageObj?.text ?? ''));
+
+      const analyzeBtn = el('button', isAr ? 'تحليل الفصول بالذكاء' : 'Analyze Chapters (AI)');
+      analyzeBtn.onclick = async () => {
+        try {
+          await window.soraDesktop?.analyzeChapters(currentBook.id);
+          state = (await window.soraDesktop?.loadState()) ?? state;
+          statusBanner = isAr ? 'تم تحليل الفصول.' : 'Chapters analyzed.';
+        } catch (err) {
+          statusBanner = err instanceof Error ? err.message : 'Analysis failed';
+        }
+        render();
+      };
+      body.append(analyzeBtn);
 
       const qInput = el('textarea') as HTMLTextAreaElement;
       qInput.rows = 3;
@@ -198,13 +241,105 @@ function render(): void {
       });
     }
   } else {
+    // Privacy mode toggle
+    const privRow = el('label', '', 'tabs');
+    const privChk = el('input') as HTMLInputElement;
+    privChk.type = 'checkbox';
+    privChk.checked = state.localOnlyPrivacyMode;
+    privChk.onchange = async () => {
+      state.localOnlyPrivacyMode = privChk.checked;
+      await window.soraDesktop?.saveState(state);
+      render();
+    };
+    privRow.append(privChk, el('span', isAr ? 'وضع الخصوصية المحلي فقط' : 'Local-Only Privacy Mode'));
+    body.append(privRow);
+
+    // Auth controls
+    if (!authInfo.configured) {
+      body.append(
+        el(
+          'div',
+          isAr
+            ? 'متغيرات Firebase غير مهيأة؛ العمل المحلي متاح والمزامنة تتطلب تهيئة الحساب.'
+            : 'Firebase desktop config missing; local study active, cloud sync requires SORA_FIREBASE_* env.',
+          'muted'
+        )
+      );
+    } else if (!authInfo.signedIn) {
+      const emailIn = el('input') as HTMLInputElement;
+      emailIn.type = 'email';
+      emailIn.placeholder = 'Email';
+      const passIn = el('input') as HTMLInputElement;
+      passIn.type = 'password';
+      passIn.placeholder = 'Password';
+      const inBtn = el('button', isAr ? 'تسجيل الدخول' : 'Sign In', 'primary');
+      inBtn.onclick = async () => {
+        try {
+          await window.soraDesktop?.authSignIn(emailIn.value, passIn.value);
+          authInfo = (await window.soraDesktop?.authStatus()) ?? authInfo;
+          statusBanner = `Signed in: ${authInfo.email}`;
+        } catch (e) {
+          statusBanner = e instanceof Error ? e.message : 'Sign-in failed';
+        }
+        render();
+      };
+      const upBtn = el('button', isAr ? 'إنشاء حساب' : 'Create Account');
+      upBtn.onclick = async () => {
+        try {
+          await window.soraDesktop?.authSignUp(emailIn.value, passIn.value, '');
+          authInfo = (await window.soraDesktop?.authStatus()) ?? authInfo;
+          statusBanner = `Account created: ${authInfo.email}`;
+        } catch (e) {
+          statusBanner = e instanceof Error ? e.message : 'Sign-up failed';
+        }
+        render();
+      };
+      body.append(emailIn, passIn, inBtn, upBtn);
+    } else {
+      body.append(el('div', `${isAr ? 'مسجل الدخول:' : 'Signed in:'} ${authInfo.email}`));
+      const outBtn = el('button', isAr ? 'تسجيل الخروج' : 'Sign Out');
+      outBtn.onclick = async () => {
+        await window.soraDesktop?.authSignOut();
+        authInfo = (await window.soraDesktop?.authStatus()) ?? authInfo;
+        render();
+      };
+      const delConf = el('input') as HTMLInputElement;
+      delConf.placeholder = isAr ? 'اكتب DELETE لحذف الحساب' : 'Type DELETE to erase cloud account';
+      const delAccBtn = el('button', isAr ? 'حذف الحساب نهائياً' : 'Delete Cloud Account');
+      delAccBtn.onclick = async () => {
+        try {
+          await window.soraDesktop?.authDeleteAccount(delConf.value);
+          authInfo = (await window.soraDesktop?.authStatus()) ?? authInfo;
+          state = (await window.soraDesktop?.loadState()) ?? state;
+          statusBanner = 'Account permanently deleted.';
+        } catch (e) {
+          statusBanner = e instanceof Error ? e.message : 'Delete failed';
+        }
+        render();
+      };
+      body.append(outBtn, delConf, delAccBtn);
+    }
+
     const syncBtn = el('button', isAr ? 'مزامنة الآن' : 'Sync Now', 'primary');
     syncBtn.onclick = async () => {
       const s = await window.soraDesktop?.syncNow();
       if (s) {
-        syncOutput = `${s.status} (${s.pendingCount})`;
+        syncOutput = `${s.status} (${s.pendingCount})${s.lastError ? ` — ${s.lastError}` : ''}`;
+        state = (await window.soraDesktop?.loadState()) ?? state;
         render();
       }
+    };
+    const retryBtn = el('button', isAr ? 'إعادة محاولة المتعثرة' : 'Retry Dead Letters');
+    retryBtn.onclick = async () => {
+      const n = await window.soraDesktop?.retryDeadLetters();
+      statusBanner = `Requeued ${n ?? 0} failed sync op(s).`;
+      render();
+    };
+    const testOllamaBtn = el('button', isAr ? 'اختبار Ollama' : 'Test Ollama');
+    testOllamaBtn.onclick = async () => {
+      const r = await window.soraDesktop?.testOllama();
+      statusBanner = r?.message ?? 'Ollama test unavailable';
+      render();
     };
     const expBtn = el('button', isAr ? 'تصدير بيانات الدراسة JSON' : 'Export Workspace JSON (No Secrets)');
     expBtn.onclick = async () => {
@@ -217,10 +352,14 @@ function render(): void {
     saveKeyBtn.onclick = async () => {
       await window.soraDesktop?.setSecret('gemini_api_key', keyInput.value);
       keyInput.value = '';
+      statusBanner = isAr ? 'تم حفظ المفتاح المشفر في الخزنة.' : 'Encrypted key saved in Desktop Vault.';
+      render();
     };
     body.append(
       el('div', `Cloud Sync: ${syncOutput}`, 'muted'),
       syncBtn,
+      retryBtn,
+      testOllamaBtn,
       expBtn,
       keyInput,
       saveKeyBtn
@@ -234,6 +373,7 @@ function render(): void {
 async function init(): Promise<void> {
   if (window.soraDesktop) {
     state = await window.soraDesktop.loadState();
+    authInfo = await window.soraDesktop.authStatus();
     selectedBookId = state.books[0]?.id ?? '';
   }
   render();

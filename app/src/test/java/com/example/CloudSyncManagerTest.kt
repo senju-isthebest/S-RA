@@ -236,4 +236,66 @@ class CloudSyncManagerTest {
         assertFalse(map.containsKey("geminiApiKey"))
         assertFalse(map.values.joinToString().contains("AIzaSuperSecretDoNotSync"))
     }
+
+    @Test
+    fun `blank uid is rejected and corrupt queue file is quarantined with visible error`() = runTest {
+        val dir = tempFolder.newFolder("quarantine_test")
+        val backend = FakeSyncBackend()
+        val processor = docProcessor()
+
+        try {
+            CloudSyncManager(
+                uid = "   ",
+                filesDir = dir,
+                backend = backend,
+                documentProcessor = processor,
+                connectivityProvider = object : NetworkConnectivityProvider {
+                    override fun isOnline(): Boolean = true
+                },
+                delayFn = {}
+            )
+            fail("Expected IllegalArgumentException for blank UID")
+        } catch (_: IllegalArgumentException) {
+            // expected
+        }
+
+        val syncDir = java.io.File(dir, "sync").apply { mkdirs() }
+        val corruptFile = java.io.File(syncDir, "queue_user_corrupt.json")
+        corruptFile.writeText("{not-valid-json", Charsets.UTF_8)
+
+        val manager = CloudSyncManager(
+            uid = "user_corrupt",
+            filesDir = dir,
+            backend = backend,
+            documentProcessor = processor,
+            connectivityProvider = object : NetworkConnectivityProvider {
+                override fun isOnline(): Boolean = true
+            },
+            delayFn = {}
+        )
+
+        assertEquals(SyncStatus.ERROR, manager.syncState.value.status)
+        assertTrue(manager.syncState.value.lastError.contains("quarantined", ignoreCase = true))
+        assertFalse("Original corrupt queue file must be moved", corruptFile.exists())
+        val quarantined = syncDir.listFiles { _, name -> name.startsWith("queue_user_corrupt.corrupt.") }
+        assertTrue("Quarantined backup must remain on disk", !quarantined.isNullOrEmpty())
+
+        // Per-UID queue isolation check
+        val otherManager = CloudSyncManager(
+            uid = "user_clean",
+            filesDir = dir,
+            backend = backend,
+            documentProcessor = processor,
+            connectivityProvider = object : NetworkConnectivityProvider {
+                override fun isOnline(): Boolean = false
+            },
+            delayFn = {}
+        )
+        otherManager.enqueueOrRun(
+            OfflineSyncOperation(opType = SyncOpType.UPDATE_BOOK_FIELDS, entityId = "b_clean", payloadJson = "{}"),
+            localOnlyPrivacyMode = false
+        )
+        assertEquals(1, otherManager.getPendingOperations().size)
+        assertEquals(0, manager.getPendingOperations().size)
+    }
 }

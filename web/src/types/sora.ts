@@ -125,6 +125,7 @@ export interface AiProviderConfig {
   ollamaEndpoint: string;
   ollamaModel: string;
   geminiModel: string;
+  /** Runtime-only key; never persisted in localStorage workspace JSON */
   geminiApiKey: string;
   timeoutMs: number;
 }
@@ -140,7 +141,14 @@ export type SyncStatus = 'IDLE' | 'SYNCING' | 'SYNCED' | 'OFFLINE_QUEUED' | 'CON
 
 export interface SyncOperation {
   id: string;
-  opType: 'UPSERT_BOOK' | 'UPSERT_NOTE' | 'SUBMIT_EXAM' | 'SYNC_PREFS';
+  opType:
+    | 'UPSERT_BOOK'
+    | 'SYNC_BOOK_PAGES'
+    | 'DELETE_BOOK'
+    | 'UPSERT_NOTE'
+    | 'DELETE_NOTE'
+    | 'SUBMIT_EXAM'
+    | 'SYNC_PREFS';
   entityId: string;
   payloadJson: string;
   createdAtMillis: number;
@@ -151,10 +159,20 @@ export interface SyncOperation {
 export interface SyncState {
   status: SyncStatus;
   pendingCount: number;
+  deadLetterCount?: number;
   conflictsResolved: number;
   lastSyncedAtMillis: number;
   lastError: string;
   localOnlyMode: boolean;
+}
+
+export interface AuthSession {
+  uid: string;
+  email: string;
+  displayName: string;
+  idToken: string;
+  refreshToken: string;
+  expiresAtMillis: number;
 }
 
 export interface SoraWorkspaceState {

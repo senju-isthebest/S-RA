@@ -142,27 +142,133 @@ object ExamEngine {
                 )
             }
 
-            "MATCHING", "ORDERING" -> {
-                val tParts = question.correctAnswer.split(",", ";", "\n").map { normalizeText(it) }.filter { it.isNotBlank() }
-                val gParts = givenRaw.split(",", ";", "\n").map { normalizeText(it) }.filter { it.isNotBlank() }
-                if (tParts.isEmpty()) {
-                    val exact = normGiven == normTarget
-                    AnswerEvaluation(exact, if (exact) 1.0 else 0.0, if (exact) marks else 0L, "")
-                } else {
-                    val matches = tParts.zip(gParts).count { (a, b) -> a == b }
-                    val ratio = matches.toDouble() / tParts.size.toDouble()
-                    val awarded = (marks * ratio).roundToLong().coerceIn(0L, marks)
-                    AnswerEvaluation(
-                        isCorrect = ratio >= 0.75,
-                        scoreRatio = ratio,
-                        awardedMarks = awarded,
-                        feedback = "$matches/${tParts.size} ordered/matched pairs correct"
-                    )
-                }
-            }
+            "MATCHING" -> evaluateMatching(question.correctAnswer, givenRaw, marks)
+
+            "ORDERING" -> evaluateOrdering(question.correctAnswer, givenRaw, marks)
 
             else -> evaluateOpenEndedRubric(question, givenRaw, marks)
         }
+    }
+
+    private fun evaluateMatching(targetRaw: String, givenRaw: String, marks: Long): AnswerEvaluation {
+        val targetPairs = parseMatchingPairs(targetRaw)
+        if (targetPairs.isEmpty()) {
+            val exact = normalizeText(targetRaw) == normalizeText(givenRaw)
+            return AnswerEvaluation(exact, if (exact) 1.0 else 0.0, if (exact) marks else 0L, if (exact) "Exact match" else "Matching mismatch")
+        }
+        val givenParsed = parseMatchingEntries(givenRaw)
+        val matched = targetPairs.entries.count { (key, expectedVal) ->
+            val actual = givenParsed.byKey[key]
+            actual != null && !givenParsed.ambiguousKeys.contains(key) && actual == expectedVal
+        }
+        val denom = maxOf(targetPairs.size, givenParsed.totalEntries).coerceAtLeast(1)
+        val ratio = (matched.toDouble() / denom.toDouble()).coerceIn(0.0, 1.0)
+        val awarded = (marks * ratio).roundToLong().coerceIn(0L, marks)
+        return AnswerEvaluation(
+            isCorrect = ratio >= 0.75,
+            scoreRatio = ratio,
+            awardedMarks = awarded,
+            feedback = "Matched $matched/${targetPairs.size} pairs"
+        )
+    }
+
+    private data class ParsedMatchingEntries(
+        val byKey: Map<String, String>,
+        val ambiguousKeys: Set<String>,
+        val totalEntries: Int
+    )
+
+    private fun parseMatchingPairs(raw: String): Map<String, String> =
+        parseMatchingEntries(raw).byKey
+
+    private fun parseMatchingEntries(raw: String): ParsedMatchingEntries {
+        val entries = raw.split(",", ";", "\n").map { it.trim() }.filter { it.isNotBlank() }
+        val byKey = linkedMapOf<String, String>()
+        val ambiguous = mutableSetOf<String>()
+        var parsedCount = 0
+        for (entry in entries) {
+            val split = splitMatchingPair(entry) ?: continue
+            val left = normalizeText(split.first)
+            val right = normalizeText(split.second)
+            if (left.isBlank() || right.isBlank()) continue
+            parsedCount++
+            val prev = byKey[left]
+            if (prev == null) {
+                byKey[left] = right
+            } else if (prev != right) {
+                ambiguous.add(left)
+            }
+        }
+        return ParsedMatchingEntries(byKey, ambiguous, parsedCount.coerceAtLeast(entries.size))
+    }
+
+    private fun splitMatchingPair(entry: String): Pair<String, String>? {
+        for (sep in listOf("->", "=>", "→", "=", ":", "-")) {
+            val idx = entry.indexOf(sep)
+            if (idx > 0 && idx + sep.length < entry.length) {
+                val left = entry.substring(0, idx).trim()
+                val right = entry.substring(idx + sep.length).trim()
+                if (left.isNotEmpty() && right.isNotEmpty()) return left to right
+            }
+        }
+        return null
+    }
+
+    private fun evaluateOrdering(targetRaw: String, givenRaw: String, marks: Long): AnswerEvaluation {
+        val targetSeq = parseOrderingSequence(targetRaw)
+        val givenSeq = parseOrderingSequence(givenRaw)
+        if (targetSeq.size <= 1) {
+            val exact = normalizeText(targetRaw) == normalizeText(givenRaw)
+            return AnswerEvaluation(exact, if (exact) 1.0 else 0.0, if (exact) marks else 0L, if (exact) "Exact order" else "Incorrect order")
+        }
+        if (givenSeq == targetSeq) {
+            return AnswerEvaluation(true, 1.0, marks, "Exact sequence match (${targetSeq.size}/${targetSeq.size})")
+        }
+        if (givenSeq.isEmpty()) {
+            return AnswerEvaluation(false, 0.0, 0L, "No ordered steps detected")
+        }
+
+        val denom = maxOf(targetSeq.size, givenSeq.size)
+        val exactPosHits = (0 until minOf(targetSeq.size, givenSeq.size)).count { i ->
+            targetSeq[i] == givenSeq[i]
+        }
+        val exactRatio = exactPosHits.toDouble() / denom.toDouble()
+
+        val usedGiven = BooleanArray(givenSeq.size)
+        val matchedGivenPos = mutableListOf<Int>()
+        for (tItem in targetSeq) {
+            val gIdx = (givenSeq.indices).firstOrNull { !usedGiven[it] && givenSeq[it] == tItem }
+            if (gIdx != null) {
+                usedGiven[gIdx] = true
+                matchedGivenPos.add(gIdx)
+            }
+        }
+        var concordant = 0
+        for (i in 0 until matchedGivenPos.size) {
+            for (j in i + 1 until matchedGivenPos.size) {
+                if (matchedGivenPos[i] < matchedGivenPos[j]) concordant++
+            }
+        }
+        val totalPairs = (targetSeq.size * (targetSeq.size - 1)) / 2
+        val pairOrderRatio = if (totalPairs > 0) {
+            (concordant.toDouble() / totalPairs.toDouble()) * (matchedGivenPos.size.toDouble() / denom.toDouble())
+        } else 0.0
+
+        val ratio = (0.60 * exactRatio + 0.40 * pairOrderRatio).coerceIn(0.0, 0.99)
+        val awarded = (marks * ratio).roundToLong().coerceIn(0L, marks)
+        return AnswerEvaluation(
+            isCorrect = ratio >= 0.75,
+            scoreRatio = ratio,
+            awardedMarks = awarded,
+            feedback = "$exactPosHits/${targetSeq.size} in exact position"
+        )
+    }
+
+    private fun parseOrderingSequence(raw: String): List<String> {
+        val listPrefix = Regex("^\\s*(?:\\(?\\d{1,2}\\)?[.)]\\s+|[-•*]\\s+)")
+        return raw.split(Regex("(?:->|→|>|[,;\\n])+"))
+            .map { part -> normalizeText(part.replace(listPrefix, "").trim()) }
+            .filter { it.isNotBlank() }
     }
 
     suspend fun evaluateQuestion(

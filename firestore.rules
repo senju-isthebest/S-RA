@@ -26,15 +26,20 @@ service cloud.firestore {
     }
 
     function isBoundedString(val, minLen, maxLen) {
-      return val is string && val.size() >= minLen && val.size() <= maxLen;
+      return val is string && (minLen == 0 || val.size() >= minLen) && val.size() <= maxLen;
     }
 
     function isBoundedStringList(val, maxItems) {
-      return val is list && val.size() <= maxItems && (val.size() == 0 || val[0] is string);
+      return val is list &&
+             val.size() <= maxItems &&
+             (val.size() == 0 || val[0] is string);
     }
 
     function isBoundedIntList(val, maxItems) {
-      return val is list && val.size() <= maxItems && (val.size() == 0 || val[0] is int);
+      return val is list &&
+             val.size() <= maxItems &&
+             (val.size() == 0 || (val[0] is int && val[0] >= 1 && val[0] <= 5000 && val[val.size() - 1] is int && val[val.size() - 1] >= 1 && val[val.size() - 1] <= 5000)) &&
+             (val.size() < 2 || (val[1] is int && val[1] >= 1 && val[1] <= 5000));
     }
 
     function isValidUserProfile(data) {
@@ -69,7 +74,9 @@ service cloud.firestore {
              isBoundedString(data.localBookId, 1, 128) &&
              data.totalPages is int && data.totalPages >= 0 && data.totalPages <= 5000 &&
              data.processedPages is int && data.processedPages >= 0 && data.processedPages <= 5000 &&
+             (data.totalPages == 0 || data.processedPages <= data.totalPages) &&
              data.currentPage is int && data.currentPage >= 1 && data.currentPage <= 5000 &&
+             (data.totalPages == 0 || data.currentPage <= data.totalPages) &&
              (!('failedPages' in data) || isBoundedIntList(data.failedPages, 500)) &&
              data.extractionStatus in ['PROCESSING', 'COMPLETE', 'PARTIAL', 'FAILED'] &&
              (!('extractionError' in data) || isBoundedString(data.extractionError, 0, 500)) &&
@@ -78,7 +85,8 @@ service cloud.firestore {
              data.archived is bool &&
              data.masteryScore is int && data.masteryScore >= 0 && data.masteryScore <= 100 &&
              (!('bookmarkedPages' in data) || isBoundedIntList(data.bookmarkedPages, 500)) &&
-             (!('highlightsJson' in data) || isBoundedString(data.highlightsJson, 0, 20000));
+             (!('highlightsJson' in data) || isBoundedString(data.highlightsJson, 0, 20000)) &&
+             !('geminiApiKey' in data) && !('apiKey' in data);
     }
 
     function isValidChapter(data) {
@@ -87,14 +95,15 @@ service cloud.firestore {
              isBoundedString(data.title, 1, 200) &&
              data.startPage is int && data.startPage >= 1 && data.startPage <= 5000 &&
              data.endPage is int && data.endPage >= 1 && data.endPage <= 5000 &&
+             data.endPage >= data.startPage &&
              data.estimatedStudyMinutes is int && data.estimatedStudyMinutes >= 1 && data.estimatedStudyMinutes <= 1000 &&
              data.masteryScore is int && data.masteryScore >= 0 && data.masteryScore <= 100 &&
              data.masteryStatus in ['NOT_STARTED', 'LEARNING', 'REVIEWING', 'MASTERED'] &&
-             (!('userGoal' in data) || isBoundedString(data.userGoal, 0, 500)) &&
-             (!('quickSummary' in data) || isBoundedString(data.quickSummary, 0, 4000)) &&
-             (!('detailedSummary' in data) || isBoundedString(data.detailedSummary, 0, 12000)) &&
-             (!('bulletSummary' in data) || isBoundedString(data.bulletSummary, 0, 8000)) &&
-             (!('examRevisionSummary' in data) || isBoundedString(data.examRevisionSummary, 0, 8000)) &&
+             (!('userGoal' in data) || (data.userGoal is string && data.userGoal.size() <= 500)) &&
+             (!('quickSummary' in data) || (data.quickSummary is string && data.quickSummary.size() <= 4000)) &&
+             (!('detailedSummary' in data) || (data.detailedSummary is string && data.detailedSummary.size() <= 12000)) &&
+             (!('bulletSummary' in data) || (data.bulletSummary is string && data.bulletSummary.size() <= 8000)) &&
+             (!('examRevisionSummary' in data) || (data.examRevisionSummary is string && data.examRevisionSummary.size() <= 8000)) &&
              (!('learningObjectives' in data) || isBoundedStringList(data.learningObjectives, 30)) &&
              (!('mainTopics' in data) || isBoundedStringList(data.mainTopics, 40)) &&
              (!('prerequisites' in data) || isBoundedStringList(data.prerequisites, 30)) &&
@@ -108,7 +117,7 @@ service cloud.firestore {
              (!('comparisons' in data) || isBoundedStringList(data.comparisons, 30)) &&
              (!('difficultSections' in data) || isBoundedStringList(data.difficultSections, 30)) &&
              (!('relatedChapters' in data) || isBoundedStringList(data.relatedChapters, 20)) &&
-             (!('conceptMapJson' in data) || isBoundedString(data.conceptMapJson, 0, 25000)) &&
+             (!('conceptMapJson' in data) || (data.conceptMapJson is string && data.conceptMapJson.size() <= 25000)) &&
              (!('lastStudiedAt' in data) || (data.lastStudiedAt is timestamp && data.lastStudiedAt <= request.time));
     }
 
@@ -149,6 +158,7 @@ service cloud.firestore {
              data.attempts is int && data.attempts >= 0 && data.attempts <= 10000 &&
              data.correctCount is int && data.correctCount >= 0 && data.correctCount <= 10000 &&
              data.incorrectCount is int && data.incorrectCount >= 0 && data.incorrectCount <= 10000 &&
+             (data.correctCount + data.incorrectCount) <= data.attempts &&
              (!('lastAnsweredCorrect' in data) || data.lastAnsweredCorrect is bool) &&
              data.mistakeResolved is bool &&
              data.aiGenerated is bool;
@@ -184,10 +194,12 @@ service cloud.firestore {
              (!('answersJson' in data) || isBoundedString(data.answersJson, 0, 50000)) &&
              (!('flaggedQuestionIds' in data) || isBoundedStringList(data.flaggedQuestionIds, 200)) &&
              data.score is int && data.score >= 0 && data.score <= 1000 &&
+             data.score <= data.totalMarks &&
              (data.percentage is float || data.percentage is int) && data.percentage >= 0.0 && data.percentage <= 100.0 &&
              data.correctCount is int && data.correctCount >= 0 && data.correctCount <= 200 &&
              data.incorrectCount is int && data.incorrectCount >= 0 && data.incorrectCount <= 200 &&
              data.unansweredCount is int && data.unansweredCount >= 0 && data.unansweredCount <= 200 &&
+             (data.correctCount + data.incorrectCount + data.unansweredCount) <= 200 &&
              data.timeSpentSeconds is int && data.timeSpentSeconds >= 0 && data.timeSpentSeconds <= 36000 &&
              (!('analyticsJson' in data) || isBoundedString(data.analyticsJson, 0, 20000)) &&
              (!('recommendedRevision' in data) || isBoundedString(data.recommendedRevision, 0, 3000));
@@ -277,7 +289,7 @@ service cloud.firestore {
              isBoundedString(data.geminiModel, 1, 100) &&
              data.aiTimeoutMs is int && data.aiTimeoutMs >= 5000 && data.aiTimeoutMs <= 180000 &&
              data.clientUpdatedAtMillis is int && data.clientUpdatedAtMillis >= 0 &&
-             !('geminiApiKey' in data);
+             !('geminiApiKey' in data) && !('apiKey' in data);
     }
 
     match /users/{userId} {
@@ -335,18 +347,18 @@ service cloud.firestore {
           allow get: if isOwner(userId) && isValidId(bookId) && isValidId(chapterId);
           allow list: if isOwner(userId) && isValidId(bookId);
           allow create: if isOwner(userId) && isValidId(bookId) && isValidId(chapterId) &&
-                           incoming().bookId == bookId &&
-                           incoming().keys().hasAll(['bookId', 'chapterNumber', 'title', 'startPage', 'endPage', 'estimatedStudyMinutes', 'masteryScore', 'masteryStatus', 'createdAt', 'updatedAt']) &&
-                           incoming().keys().hasOnly(['bookId', 'chapterNumber', 'title', 'startPage', 'endPage', 'estimatedStudyMinutes', 'masteryScore', 'masteryStatus', 'userGoal', 'quickSummary', 'detailedSummary', 'bulletSummary', 'examRevisionSummary', 'learningObjectives', 'mainTopics', 'prerequisites', 'keyConcepts', 'importantDefinitions', 'importantFacts', 'importantDates', 'formulas', 'examples', 'misconceptions', 'comparisons', 'difficultSections', 'relatedChapters', 'conceptMapJson', 'lastStudiedAt', 'createdAt', 'updatedAt']) &&
-                           incoming().createdAt is timestamp && incoming().createdAt <= request.time &&
-                           incoming().updatedAt is timestamp && incoming().updatedAt <= request.time &&
-                           isValidChapter(incoming());
+                           request.resource.data.bookId == bookId &&
+                           request.resource.data.keys().hasAll(['bookId', 'chapterNumber', 'title', 'startPage', 'endPage', 'estimatedStudyMinutes', 'masteryScore', 'masteryStatus', 'createdAt', 'updatedAt']) &&
+                           request.resource.data.keys().hasOnly(['bookId', 'chapterNumber', 'title', 'startPage', 'endPage', 'estimatedStudyMinutes', 'masteryScore', 'masteryStatus', 'userGoal', 'quickSummary', 'detailedSummary', 'bulletSummary', 'examRevisionSummary', 'learningObjectives', 'mainTopics', 'prerequisites', 'keyConcepts', 'importantDefinitions', 'importantFacts', 'importantDates', 'formulas', 'examples', 'misconceptions', 'comparisons', 'difficultSections', 'relatedChapters', 'conceptMapJson', 'lastStudiedAt', 'createdAt', 'updatedAt']) &&
+                           request.resource.data.createdAt is timestamp && request.resource.data.createdAt <= request.time &&
+                           request.resource.data.updatedAt is timestamp && request.resource.data.updatedAt <= request.time &&
+                           isValidChapter(request.resource.data);
           allow update: if isOwner(userId) && isValidId(bookId) && isValidId(chapterId) &&
-                           isValidChapter(incoming()) &&
-                           incoming().bookId == existing().bookId &&
-                           incoming().createdAt == existing().createdAt &&
-                           incoming().updatedAt is timestamp && incoming().updatedAt <= request.time &&
-                           incoming().diff(existing()).affectedKeys().hasOnly(['title', 'startPage', 'endPage', 'estimatedStudyMinutes', 'masteryScore', 'masteryStatus', 'userGoal', 'quickSummary', 'detailedSummary', 'bulletSummary', 'examRevisionSummary', 'learningObjectives', 'mainTopics', 'prerequisites', 'keyConcepts', 'importantDefinitions', 'importantFacts', 'importantDates', 'formulas', 'examples', 'misconceptions', 'comparisons', 'difficultSections', 'relatedChapters', 'conceptMapJson', 'lastStudiedAt', 'updatedAt']);
+                           request.resource.data.bookId == existing().bookId &&
+                           request.resource.data.createdAt == existing().createdAt &&
+                           request.resource.data.updatedAt is timestamp && request.resource.data.updatedAt <= request.time &&
+                           request.resource.data.diff(existing()).affectedKeys().hasOnly(['title', 'startPage', 'endPage', 'estimatedStudyMinutes', 'masteryScore', 'masteryStatus', 'userGoal', 'quickSummary', 'detailedSummary', 'bulletSummary', 'examRevisionSummary', 'learningObjectives', 'mainTopics', 'prerequisites', 'keyConcepts', 'importantDefinitions', 'importantFacts', 'importantDates', 'formulas', 'examples', 'misconceptions', 'comparisons', 'difficultSections', 'relatedChapters', 'conceptMapJson', 'lastStudiedAt', 'updatedAt']) &&
+                           isValidChapter(request.resource.data);
           allow delete: if isOwner(userId) && isValidId(bookId) && isValidId(chapterId);
         }
 

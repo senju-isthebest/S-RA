@@ -173,6 +173,7 @@ class SoraViewModel(
     private val _focusState = MutableStateFlow(FocusTimerState())
     val focusState: StateFlow<FocusTimerState> = _focusState.asStateFlow()
     private var timerJob: Job? = null
+    private var fullBookAnalysisJob: Job? = null
 
     private val _aiConnectionTestResult = MutableStateFlow<ConnectionTestResult?>(null)
     val aiConnectionTestResult: StateFlow<ConnectionTestResult?> = _aiConnectionTestResult.asStateFlow()
@@ -672,54 +673,65 @@ class SoraViewModel(
         }
     }
 
+    fun cancelFullBookAnalysis() {
+        fullBookAnalysisJob?.cancel()
+        fullBookAnalysisJob = null
+        _fullBookProgress.value = FullBookAnalysisProgress(active = false)
+        _aiBusyLabel.value = null
+    }
+
     fun analyzeFullBookAllChapters(book: Book, chapters: List<Chapter>, difficultyLevel: String = "Standard") {
         if (chapters.isEmpty()) return
-        viewModelScope.launch {
-            val pages = documentProcessor.loadPages(book.localBookId)
-            if (pages.isEmpty()) {
-                _bannerMessage.value = lStr(R.string.vm_no_extracted_pages, "No extracted pages available for this book.")
-                return@launch
-            }
-            val result = fullBookEngine.analyzeAllChapters(
-                bookId = book.id,
-                bookTitle = book.title,
-                chapters = chapters,
-                pages = pages,
-                difficultyLevel = difficultyLevel,
-                responseLanguage = settings.value.appLanguage,
-                onProgress = { prog ->
-                    _fullBookProgress.value = prog
-                    if (prog.active) {
-                        _aiBusyLabel.value = lStr(
-                            R.string.fullbook_progress,
-                            "Analyzing Ch. %1\$d/%2\$d: %3\$s",
-                            prog.currentChapterIndex,
-                            prog.totalChapters,
-                            prog.currentChapterTitle
-                        )
+        fullBookAnalysisJob?.cancel()
+        fullBookAnalysisJob = viewModelScope.launch {
+            try {
+                val pages = documentProcessor.loadPages(book.localBookId)
+                if (pages.isEmpty()) {
+                    _bannerMessage.value = lStr(R.string.vm_no_extracted_pages, "No extracted pages available for this book.")
+                    return@launch
+                }
+                val result = fullBookEngine.analyzeAllChapters(
+                    bookId = book.id,
+                    bookTitle = book.title,
+                    chapters = chapters,
+                    pages = pages,
+                    difficultyLevel = difficultyLevel,
+                    responseLanguage = settings.value.appLanguage,
+                    onProgress = { prog ->
+                        _fullBookProgress.value = prog
+                        if (prog.active) {
+                            _aiBusyLabel.value = lStr(
+                                R.string.fullbook_progress,
+                                "Analyzing Ch. %1\$d/%2\$d: %3\$s",
+                                prog.currentChapterIndex,
+                                prog.totalChapters,
+                                prog.currentChapterTitle
+                            )
+                        }
+                    },
+                    onChapterReady = { enriched, glossary, genQuestions, genCards ->
+                        repository.saveChapter(book.id, enriched)
+                        if (glossary.isNotEmpty()) repository.addGlossaryEntries(book.id, glossary)
+                        if (genQuestions.isNotEmpty()) repository.addQuestions(genQuestions)
+                        if (genCards.isNotEmpty()) repository.addFlashcards(genCards)
                     }
-                },
-                onChapterReady = { enriched, glossary, genQuestions, genCards ->
-                    repository.saveChapter(book.id, enriched)
-                    if (glossary.isNotEmpty()) repository.addGlossaryEntries(book.id, glossary)
-                    if (genQuestions.isNotEmpty()) repository.addQuestions(genQuestions)
-                    if (genCards.isNotEmpty()) repository.addFlashcards(genCards)
+                )
+                result.onSuccess { res ->
+                    val updates = mutableMapOf<String, Any>()
+                    if (res.consolidatedOverview.isNotBlank()) updates["overview"] = res.consolidatedOverview
+                    if (res.consolidatedFormulaSheet.isNotBlank()) updates["formulaSheet"] = res.consolidatedFormulaSheet
+                    if (updates.isNotEmpty()) repository.updateBook(book.id, updates)
+                    _bannerMessage.value = if (res.failedChapters == 0) {
+                        lStr(R.string.fullbook_done, "Full-book analysis complete: %1\$d chapter(s) processed.", res.completedChapters)
+                    } else {
+                        lStr(R.string.fullbook_partial, "Full-book analysis finished (%1\$d ok, %2\$d failed).", res.completedChapters, res.failedChapters)
+                    }
+                }.onFailure { err ->
+                    _bannerMessage.value = err.localizedMessage ?: lStr(R.string.vm_analysis_failed, "Analysis failed.")
                 }
-            )
-            _fullBookProgress.value = FullBookAnalysisProgress(active = false)
-            _aiBusyLabel.value = null
-            result.onSuccess { res ->
-                val updates = mutableMapOf<String, Any>()
-                if (res.consolidatedOverview.isNotBlank()) updates["overview"] = res.consolidatedOverview
-                if (res.consolidatedFormulaSheet.isNotBlank()) updates["formulaSheet"] = res.consolidatedFormulaSheet
-                if (updates.isNotEmpty()) repository.updateBook(book.id, updates)
-                _bannerMessage.value = if (res.failedChapters == 0) {
-                    lStr(R.string.fullbook_done, "Full-book analysis complete: %1\$d chapter(s) processed.", res.completedChapters)
-                } else {
-                    lStr(R.string.fullbook_partial, "Full-book analysis finished (%1\$d ok, %2\$d failed).", res.completedChapters, res.failedChapters)
-                }
-            }.onFailure { err ->
-                _bannerMessage.value = err.localizedMessage ?: lStr(R.string.vm_analysis_failed, "Analysis failed.")
+            } finally {
+                _fullBookProgress.value = FullBookAnalysisProgress(active = false)
+                _aiBusyLabel.value = null
             }
         }
     }
@@ -1669,19 +1681,29 @@ class SoraViewModel(
 
     fun deleteAccountAndAllData(onDeleted: () -> Unit) {
         viewModelScope.launch {
+            val currentUser = Firebase.auth.currentUser
+            val lastSignIn = currentUser?.metadata?.lastSignInTimestamp ?: 0L
+            if (currentUser != null && lastSignIn > 0L && (System.currentTimeMillis() - lastSignIn) > 270_000L) {
+                _bannerMessage.value = lStr(
+                    R.string.sec_reauth_required,
+                    "Please sign out and sign in with Google again before deleting your account."
+                )
+                return@launch
+            }
+
             val cloudRes = repository.deleteAllUserCloudData()
             if (cloudRes.isFailure) {
                 _bannerMessage.value = cloudRes.exceptionOrNull()?.localizedMessage
                     ?: lStr(R.string.sec_reauth_required, "Please sign in again before deleting.")
                 return@launch
             }
-            documentProcessor.clearAllBooksCache()
-            offlineExamCache.clearAll()
-            cloudSyncManager.clearLocalQueue()
-            userPreferences.clearAllPreferences()
 
             try {
-                Firebase.auth.currentUser?.delete()?.await()
+                currentUser?.delete()?.await()
+                documentProcessor.clearAllBooksCache()
+                offlineExamCache.clearAll()
+                cloudSyncManager.clearLocalQueue()
+                userPreferences.clearAllPreferences()
                 _bannerMessage.value = lStr(R.string.sec_account_deleted, "Account and study data deleted.")
                 onDeleted()
             } catch (_: FirebaseAuthRecentLoginRequiredException) {
@@ -1716,5 +1738,6 @@ class SoraViewModel(
     override fun onCleared() {
         super.onCleared()
         timerJob?.cancel()
+        fullBookAnalysisJob?.cancel()
     }
 }

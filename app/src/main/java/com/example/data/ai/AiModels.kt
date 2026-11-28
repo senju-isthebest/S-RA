@@ -29,7 +29,8 @@ data class AiProviderConfig(
     val geminiModel: String = DEFAULT_GEMINI_MODEL,
     val geminiApiKey: String = "",
     val requestTimeoutMs: Long = DEFAULT_TIMEOUT_MS,
-    val maxRetries: Int = 1
+    val maxRetries: Int = 1,
+    val localOnlyPrivacyMode: Boolean = false
 ) {
     companion object {
         const val DEFAULT_OLLAMA_ENDPOINT = "http://localhost:11434"

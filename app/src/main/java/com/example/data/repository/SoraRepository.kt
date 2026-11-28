@@ -355,11 +355,13 @@ class SoraRepository(
     }
 
     private suspend fun deleteCollectionBatched(col: CollectionReference) {
-        val snap = col.get().await()
-        snap.documents.chunked(350).forEach { chunk ->
+        while (true) {
+            val snap = col.limit(350).get().await()
+            if (snap.isEmpty) break
             val batch = db.batch()
-            chunk.forEach { doc -> batch.delete(doc.reference) }
+            snap.documents.forEach { doc -> batch.delete(doc.reference) }
             batch.commit().await()
+            if (snap.size() < 350) break
         }
     }
 

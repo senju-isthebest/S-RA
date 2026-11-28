@@ -23,6 +23,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.io.File
+import java.io.FileOutputStream
 import java.util.UUID
 
 private const val TAG = "CloudSyncManager"
@@ -226,10 +227,16 @@ class CloudSyncManager(
     val syncState: StateFlow<SyncState> = _syncState.asStateFlow()
 
     init {
-        val initial = loadQueueLocked()
+        require(uid.isNotBlank()) { "Authenticated UID cannot be blank for CloudSyncManager." }
+        val (initial, loadErr) = loadQueueLockedWithStatus()
         _syncState.value = SyncState(
-            status = if (initial.isEmpty()) SyncStatus.IDLE else SyncStatus.OFFLINE_QUEUED,
+            status = when {
+                loadErr != null -> SyncStatus.ERROR
+                initial.isEmpty() -> SyncStatus.IDLE
+                else -> SyncStatus.OFFLINE_QUEUED
+            },
             pendingCount = initial.size,
+            lastError = loadErr.orEmpty(),
             isOnline = connectivityProvider.isOnline()
         )
     }
@@ -513,12 +520,16 @@ class CloudSyncManager(
         return out
     }
 
-    private fun loadQueueLocked(): List<OfflineSyncOperation> {
-        if (!queueFile.exists()) return emptyList()
+    private fun loadQueueLocked(): List<OfflineSyncOperation> =
+        loadQueueLockedWithStatus().first
+
+    private fun loadQueueLockedWithStatus(): Pair<List<OfflineSyncOperation>, String?> {
+        if (!queueFile.exists()) return emptyList<OfflineSyncOperation>() to null
         return try {
             val root = SoraJson.parseObject(queueFile.readText(Charsets.UTF_8))
-            val arr = root.arr("operations") ?: return emptyList()
-            arr.items.mapNotNull { item ->
+            val arr = root.arr("operations")
+                ?: throw IllegalStateException("Sync queue missing 'operations' array.")
+            val ops = arr.items.mapNotNull { item ->
                 val obj = item as? JsonObj ?: return@mapNotNull null
                 val type = SyncOpType.entries.firstOrNull { it.name == obj.str("opType") }
                     ?: return@mapNotNull null
@@ -532,13 +543,32 @@ class CloudSyncManager(
                     lastError = obj.str("lastError", "")
                 )
             }
+            ops to null
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to read offline sync queue", e)
-            emptyList()
+            Log.e(TAG, "Failed to read offline sync queue; quarantining corrupt file", e)
+            val quarantine = File(
+                syncDir,
+                "${queueFile.nameWithoutExtension}.corrupt.${System.currentTimeMillis()}.json"
+            )
+            try {
+                if (!queueFile.renameTo(quarantine)) {
+                    queueFile.copyTo(quarantine, overwrite = true)
+                    queueFile.delete()
+                }
+            } catch (qe: Exception) {
+                Log.w(TAG, "Could not move corrupt sync queue to ${quarantine.name}", qe)
+            }
+            val msg = "Corrupt offline sync queue quarantined (${quarantine.name})."
+            _syncState.value = _syncState.value.copy(
+                status = SyncStatus.ERROR,
+                lastError = msg
+            )
+            emptyList<OfflineSyncOperation>() to msg
         }
     }
 
     private fun saveQueueLocked(items: List<OfflineSyncOperation>) {
+        val tmp = File(syncDir, ".${queueFile.name}.${System.nanoTime()}.tmp")
         try {
             val jsonItems = items.map { op ->
                 SoraJson.obj(
@@ -551,9 +581,15 @@ class CloudSyncManager(
                     "lastError" to op.lastError
                 )
             }
-            val payload = SoraJson.obj("operations" to jsonItems).toJsonString()
-            queueFile.writeText(payload, Charsets.UTF_8)
+            val payload = SoraJson.obj("operations" to jsonItems).toJsonString().toByteArray(Charsets.UTF_8)
+            FileOutputStream(tmp).use { it.write(payload) }
+            if (queueFile.exists()) queueFile.delete()
+            if (!tmp.renameTo(queueFile)) {
+                queueFile.writeBytes(payload)
+                tmp.delete()
+            }
         } catch (e: Exception) {
+            tmp.delete()
             Log.e(TAG, "Failed to persist offline sync queue", e)
         }
     }

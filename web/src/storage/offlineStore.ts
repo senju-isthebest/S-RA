@@ -1,4 +1,5 @@
 import type {
+  AuthSession,
   Book,
   SoraWorkspaceState,
   SyncOperation,
@@ -7,8 +8,11 @@ import type {
 } from '../types/sora';
 
 const STATE_KEY = 'sora_web_workspace_v1';
-const QUEUE_KEY = 'sora_web_sync_queue_v1';
-const SYNC_META_KEY = 'sora_web_sync_meta_v1';
+const QUEUE_KEY_PREFIX = 'sora_web_sync_queue_v2_';
+const DEAD_KEY_PREFIX = 'sora_web_sync_dead_v2_';
+const META_KEY_PREFIX = 'sora_web_sync_meta_v2_';
+const SESSION_AUTH_KEY = 'sora_web_auth_session_v1';
+const SECRET_MEM_PLACEHOLDER = '__mem__';
 
 export interface StorageBackend {
   getItem(key: string): string | null;
@@ -27,6 +31,11 @@ class MemoryStorage implements StorageBackend {
   removeItem(key: string): void {
     this.map.delete(key);
   }
+}
+
+function normalizeScopeUid(uid?: string): string {
+  const clean = (uid ?? '').trim().replace(/[^a-zA-Z0-9_-]/g, '_');
+  return clean || 'guest';
 }
 
 export function defaultSettings(): UserSettings {
@@ -106,8 +115,93 @@ export function createBrowserStorage(): StorageBackend {
   return new MemoryStorage();
 }
 
+export function createSessionStorage(): StorageBackend {
+  if (typeof window !== 'undefined' && window.sessionStorage) {
+    return window.sessionStorage;
+  }
+  return new MemoryStorage();
+}
+
+/**
+ * Holds optional runtime Gemini API keys in JS memory ONLY (never localStorage, never workspace JSON, never synced).
+ * Users who explicitly enter a key may optionally mirror it to ephemeral sessionStorage wrapped with a per-tab
+ * non-extractable WebCrypto AES-GCM key (subject to standard browser XSS threat model; cleared on sign-out/tab close).
+ */
+export class WebSessionSecretStore {
+  private readonly mem = new Map<string, string>();
+  private wrapKey: CryptoKey | null = null;
+
+  constructor(private readonly sessionStore: StorageBackend = createSessionStorage()) {}
+
+  setMemorySecret(name: string, value: string): void {
+    const clean = value.trim();
+    if (!clean) this.mem.delete(name);
+    else this.mem.set(name, clean);
+  }
+
+  getMemorySecret(name: string): string {
+    return this.mem.get(name) ?? '';
+  }
+
+  async setEphemeralSessionSecret(name: string, value: string): Promise<void> {
+    this.setMemorySecret(name, value);
+    const clean = value.trim();
+    if (!clean) {
+      this.sessionStore.removeItem(`sora_ephemeral_${name}`);
+      return;
+    }
+    if (typeof globalThis.crypto?.subtle === 'undefined') {
+      return;
+    }
+    try {
+      if (!this.wrapKey) {
+        this.wrapKey = await globalThis.crypto.subtle.generateKey(
+          { name: 'AES-GCM', length: 256 },
+          false,
+          ['encrypt', 'decrypt']
+        );
+      }
+      const iv = globalThis.crypto.getRandomValues(new Uint8Array(12));
+      const encoded = new TextEncoder().encode(clean);
+      const cipher = new Uint8Array(
+        await globalThis.crypto.subtle.encrypt({ name: 'AES-GCM', iv }, this.wrapKey, encoded)
+      );
+      const combined = new Uint8Array(iv.length + cipher.length);
+      combined.set(iv, 0);
+      combined.set(cipher, iv.length);
+      const b64 = btoa(String.fromCharCode(...combined));
+      this.sessionStore.setItem(`sora_ephemeral_${name}`, `${SECRET_MEM_PLACEHOLDER}:${b64}`);
+    } catch {
+      // Memory-only remains active cleanly
+    }
+  }
+
+  clearAll(): void {
+    this.mem.clear();
+    this.wrapKey = null;
+    this.sessionStore.removeItem('sora_ephemeral_gemini_api_key');
+  }
+}
+
 export class OfflineWorkspaceStore {
-  constructor(private readonly storage: StorageBackend = createBrowserStorage()) {}
+  private flushLocked = false;
+
+  constructor(
+    private readonly storage: StorageBackend = createBrowserStorage(),
+    private readonly sessionStorage: StorageBackend = createSessionStorage()
+  ) {}
+
+  private queueKey(uid?: string): string {
+    return `${QUEUE_KEY_PREFIX}${normalizeScopeUid(uid)}`;
+  }
+
+  private deadKey(uid?: string): string {
+    return `${DEAD_KEY_PREFIX}${normalizeScopeUid(uid)}`;
+  }
+
+  private metaKey(uid?: string): string {
+    return `${META_KEY_PREFIX}${normalizeScopeUid(uid)}`;
+  }
 
   loadWorkspace(): SoraWorkspaceState {
     try {
@@ -115,51 +209,170 @@ export class OfflineWorkspaceStore {
       if (!raw) return defaultWorkspaceState();
       const parsed = JSON.parse(raw) as Partial<SoraWorkspaceState>;
       const def = defaultWorkspaceState();
-      return {
-        books: parsed.books ?? [],
-        questions: parsed.questions ?? [],
-        flashcards: parsed.flashcards ?? [],
-        exams: parsed.exams ?? [],
-        notes: parsed.notes ?? [],
+      // Always strip any legacy plaintext geminiApiKey from localStorage
+      const hadLegacyKey = Boolean(parsed.settings?.aiConfig?.geminiApiKey);
+      const loaded: SoraWorkspaceState = {
+        books: Array.isArray(parsed.books) ? parsed.books : [],
+        questions: Array.isArray(parsed.questions) ? parsed.questions : [],
+        flashcards: Array.isArray(parsed.flashcards) ? parsed.flashcards : [],
+        exams: Array.isArray(parsed.exams) ? parsed.exams : [],
+        notes: Array.isArray(parsed.notes) ? parsed.notes : [],
         settings: {
           ...def.settings,
           ...(parsed.settings ?? {}),
           aiConfig: {
             ...def.settings.aiConfig,
-            ...(parsed.settings?.aiConfig ?? {})
+            ...(parsed.settings?.aiConfig ?? {}),
+            geminiApiKey: ''
           }
         }
       };
+      if (hadLegacyKey) {
+        this.saveWorkspace(loaded);
+      }
+      return loaded;
     } catch {
       return defaultWorkspaceState();
     }
   }
 
   saveWorkspace(state: SoraWorkspaceState): void {
-    this.storage.setItem(STATE_KEY, JSON.stringify(state));
+    // Strip runtime secrets before persisting to localStorage
+    const sanitized: SoraWorkspaceState = {
+      ...state,
+      settings: {
+        ...state.settings,
+        aiConfig: {
+          ...state.settings.aiConfig,
+          geminiApiKey: ''
+        }
+      }
+    };
+    this.storage.setItem(STATE_KEY, JSON.stringify(sanitized));
   }
 
-  loadQueue(): SyncOperation[] {
+  loadAuthSession(): AuthSession | null {
     try {
-      const raw = this.storage.getItem(QUEUE_KEY);
-      return raw ? (JSON.parse(raw) as SyncOperation[]) : [];
+      const raw = this.sessionStorage.getItem(SESSION_AUTH_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as Partial<AuthSession>;
+      if (!parsed.uid || !parsed.idToken) return null;
+      return {
+        uid: parsed.uid,
+        email: parsed.email ?? '',
+        displayName: parsed.displayName ?? '',
+        idToken: parsed.idToken,
+        refreshToken: parsed.refreshToken ?? '',
+        expiresAtMillis: parsed.expiresAtMillis ?? 0
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  saveAuthSession(session: AuthSession | null): void {
+    if (!session) {
+      this.sessionStorage.removeItem(SESSION_AUTH_KEY);
+      return;
+    }
+    this.sessionStorage.setItem(SESSION_AUTH_KEY, JSON.stringify(session));
+  }
+
+  loadQueue(uid?: string): SyncOperation[] {
+    const key = this.queueKey(uid);
+    const raw = this.storage.getItem(key);
+    if (!raw) return [];
+    try {
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) throw new Error('Queue is not an array');
+      return parsed as SyncOperation[];
+    } catch {
+      // Preserve corrupt queue payload for diagnostics rather than silently dropping user edits
+      const corruptKey = `sora_web_sync_corrupt_${normalizeScopeUid(uid)}_${Date.now()}`;
+      this.storage.setItem(corruptKey, raw);
+      this.storage.removeItem(key);
+      const prevMeta = this.loadSyncMeta(uid);
+      this.saveSyncMeta(
+        {
+          ...prevMeta,
+          status: 'ERROR',
+          lastError: `Sync queue JSON was corrupted and quarantined (${corruptKey}).`
+        },
+        uid
+      );
+      return [];
+    }
+  }
+
+  saveQueue(queue: SyncOperation[], uid?: string): void {
+    this.storage.setItem(this.queueKey(uid), JSON.stringify(queue));
+  }
+
+  enqueueOperation(op: SyncOperation, uid?: string): SyncOperation[] {
+    const queue = this.loadQueue(uid).filter((existing) => {
+      if (op.opType === 'SYNC_PREFS' && existing.opType === 'SYNC_PREFS') return false;
+      if (op.opType === 'UPSERT_BOOK' && existing.opType === 'UPSERT_BOOK' && existing.entityId === op.entityId) return false;
+      if (op.opType === 'SYNC_BOOK_PAGES' && existing.opType === 'SYNC_BOOK_PAGES' && existing.entityId === op.entityId) return false;
+      if (op.opType === 'DELETE_BOOK' && existing.entityId === op.entityId && (existing.opType === 'UPSERT_BOOK' || existing.opType === 'SYNC_BOOK_PAGES')) {
+        return false;
+      }
+      if (op.opType === 'DELETE_NOTE' && existing.entityId === op.entityId && existing.opType === 'UPSERT_NOTE') {
+        return false;
+      }
+      return true;
+    });
+    queue.push(op);
+    this.saveQueue(queue, uid);
+    return queue;
+  }
+
+  loadDeadLetterQueue(uid?: string): SyncOperation[] {
+    const raw = this.storage.getItem(this.deadKey(uid));
+    if (!raw) return [];
+    try {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? (parsed as SyncOperation[]) : [];
     } catch {
       return [];
     }
   }
 
-  saveQueue(queue: SyncOperation[]): void {
-    this.storage.setItem(QUEUE_KEY, JSON.stringify(queue));
+  saveDeadLetterQueue(ops: SyncOperation[], uid?: string): void {
+    if (ops.length === 0) this.storage.removeItem(this.deadKey(uid));
+    else this.storage.setItem(this.deadKey(uid), JSON.stringify(ops));
   }
 
-  loadSyncMeta(): SyncState {
-    const queue = this.loadQueue();
+  requeueDeadLetters(uid?: string): number {
+    const dead = this.loadDeadLetterQueue(uid);
+    if (dead.length === 0) return 0;
+    const current = this.loadQueue(uid);
+    const reset = dead.map((op) => ({ ...op, attempts: 0 }));
+    this.saveQueue([...current, ...reset], uid);
+    this.saveDeadLetterQueue([], uid);
+    return reset.length;
+  }
+
+  loadSyncMeta(uid?: string): SyncState {
+    const queueRaw = this.storage.getItem(this.queueKey(uid));
+    let queueCount = 0;
+    if (queueRaw) {
+      try {
+        const arr = JSON.parse(queueRaw);
+        if (Array.isArray(arr)) queueCount = arr.length;
+      } catch {
+        queueCount = 0;
+      }
+    }
+    const deadCount = this.loadDeadLetterQueue(uid).length;
     try {
-      const raw = this.storage.getItem(SYNC_META_KEY);
+      const raw = this.storage.getItem(this.metaKey(uid));
       const parsed = raw ? (JSON.parse(raw) as Partial<SyncState>) : {};
+      const status =
+        deadCount > 0 ? 'ERROR' : queueCount > 0 ? 'OFFLINE_QUEUED' : (parsed.status ?? 'IDLE');
       return {
-        status: queue.length > 0 ? 'OFFLINE_QUEUED' : (parsed.status ?? 'IDLE'),
-        pendingCount: queue.length,
+        status,
+        pendingCount: queueCount + deadCount,
+        deadLetterCount: deadCount,
         conflictsResolved: parsed.conflictsResolved ?? 0,
         lastSyncedAtMillis: parsed.lastSyncedAtMillis ?? 0,
         lastError: parsed.lastError ?? '',
@@ -167,8 +380,9 @@ export class OfflineWorkspaceStore {
       };
     } catch {
       return {
-        status: 'IDLE',
-        pendingCount: queue.length,
+        status: deadCount > 0 ? 'ERROR' : queueCount > 0 ? 'OFFLINE_QUEUED' : 'IDLE',
+        pendingCount: queueCount + deadCount,
+        deadLetterCount: deadCount,
         conflictsResolved: 0,
         lastSyncedAtMillis: 0,
         lastError: '',
@@ -177,8 +391,8 @@ export class OfflineWorkspaceStore {
     }
   }
 
-  saveSyncMeta(meta: SyncState): void {
-    this.storage.setItem(SYNC_META_KEY, JSON.stringify(meta));
+  saveSyncMeta(meta: SyncState, uid?: string): void {
+    this.storage.setItem(this.metaKey(uid), JSON.stringify(meta));
   }
 
   exportNonSecretJson(state: SoraWorkspaceState): string {
@@ -202,10 +416,27 @@ export class OfflineWorkspaceStore {
     return JSON.stringify(sanitized, null, 2);
   }
 
-  clearAll(): void {
+  clearAccountQueues(uid?: string): void {
+    this.storage.removeItem(this.queueKey(uid));
+    this.storage.removeItem(this.deadKey(uid));
+    this.storage.removeItem(this.metaKey(uid));
+  }
+
+  clearAll(uid?: string): void {
     this.storage.removeItem(STATE_KEY);
-    this.storage.removeItem(QUEUE_KEY);
-    this.storage.removeItem(SYNC_META_KEY);
+    this.clearAccountQueues(uid);
+    this.clearAccountQueues('guest');
+    this.saveAuthSession(null);
+  }
+
+  tryAcquireFlushLock(): boolean {
+    if (this.flushLocked) return false;
+    this.flushLocked = true;
+    return true;
+  }
+
+  releaseFlushLock(): void {
+    this.flushLocked = false;
   }
 }
 
@@ -214,50 +445,73 @@ export async function flushSyncQueueWithRetry(
   executor: (op: SyncOperation) => Promise<void>,
   isOnline: boolean,
   localOnlyPrivacyMode: boolean,
-  maxAttempts = 4
+  maxAttempts = 4,
+  uid?: string
 ): Promise<SyncState> {
-  const queue = store.loadQueue();
-  const prevMeta = store.loadSyncMeta();
-  if (localOnlyPrivacyMode || !isOnline) {
-    const paused: SyncState = {
-      ...prevMeta,
-      status: queue.length > 0 ? 'OFFLINE_QUEUED' : 'IDLE',
-      pendingCount: queue.length,
-      localOnlyMode: localOnlyPrivacyMode
-    };
-    store.saveSyncMeta(paused);
-    return paused;
+  if (!store.tryAcquireFlushLock()) {
+    return store.loadSyncMeta(uid);
   }
+  try {
+    const queue = store.loadQueue(uid);
+    const prevDead = store.loadDeadLetterQueue(uid);
+    const prevMeta = store.loadSyncMeta(uid);
 
-  const remaining: SyncOperation[] = [];
-  let lastError = '';
-  for (const op of queue) {
-    let sent = false;
-    let attempt = op.attempts;
-    let errMsg = '';
-    while (attempt < maxAttempts && !sent) {
-      try {
-        await executor(op);
-        sent = true;
-      } catch (err) {
-        attempt++;
-        errMsg = err instanceof Error ? err.message : 'Sync retry failed';
+    if (localOnlyPrivacyMode || !isOnline) {
+      const paused: SyncState = {
+        ...prevMeta,
+        status: queue.length + prevDead.length > 0 ? 'OFFLINE_QUEUED' : 'IDLE',
+        pendingCount: queue.length + prevDead.length,
+        deadLetterCount: prevDead.length,
+        localOnlyMode: localOnlyPrivacyMode
+      };
+      store.saveSyncMeta(paused, uid);
+      return paused;
+    }
+
+    const activeRemaining: SyncOperation[] = [];
+    const newlyDead: SyncOperation[] = [...prevDead];
+    let lastError = prevMeta.lastError ?? '';
+
+    for (const op of queue) {
+      let sent = false;
+      let attempt = op.attempts;
+      let errMsg = '';
+      while (attempt < maxAttempts && !sent) {
+        try {
+          await executor(op);
+          sent = true;
+        } catch (err) {
+          attempt++;
+          errMsg = err instanceof Error ? err.message : 'Sync retry failed';
+        }
+      }
+      if (!sent) {
+        lastError = errMsg;
+        const failedOp: SyncOperation = { ...op, attempts: attempt, lastError: errMsg };
+        if (attempt >= maxAttempts) {
+          newlyDead.push(failedOp);
+        } else {
+          activeRemaining.push(failedOp);
+        }
       }
     }
-    if (!sent) {
-      lastError = errMsg;
-      remaining.push({ ...op, attempts: attempt, lastError: errMsg });
-    }
+
+    store.saveQueue(activeRemaining, uid);
+    store.saveDeadLetterQueue(newlyDead, uid);
+
+    const totalPending = activeRemaining.length + newlyDead.length;
+    const next: SyncState = {
+      ...prevMeta,
+      status: totalPending === 0 ? 'SYNCED' : 'ERROR',
+      pendingCount: totalPending,
+      deadLetterCount: newlyDead.length,
+      lastSyncedAtMillis: totalPending === 0 ? Date.now() : prevMeta.lastSyncedAtMillis,
+      lastError: totalPending === 0 ? '' : lastError,
+      localOnlyMode: false
+    };
+    store.saveSyncMeta(next, uid);
+    return next;
+  } finally {
+    store.releaseFlushLock();
   }
-  store.saveQueue(remaining);
-  const next: SyncState = {
-    ...prevMeta,
-    status: remaining.length === 0 ? 'SYNCED' : 'ERROR',
-    pendingCount: remaining.length,
-    lastSyncedAtMillis: remaining.length === 0 ? Date.now() : prevMeta.lastSyncedAtMillis,
-    lastError,
-    localOnlyMode: false
-  };
-  store.saveSyncMeta(next);
-  return next;
 }

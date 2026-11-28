@@ -44,7 +44,8 @@ data class SoraSettings(
         ollamaVisionModel = ollamaVisionModel.trim(),
         geminiModel = geminiModel.ifBlank { AiProviderConfig.DEFAULT_GEMINI_MODEL },
         geminiApiKey = geminiApiKey.trim(),
-        requestTimeoutMs = aiTimeoutMs.coerceIn(5_000L, 180_000L)
+        requestTimeoutMs = aiTimeoutMs.coerceIn(5_000L, 180_000L),
+        localOnlyPrivacyMode = localOnlyPrivacyMode
     )
 }
 

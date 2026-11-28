@@ -621,4 +621,103 @@ class AiProviderRouterTest {
             server.stop(0)
         }
     }
+
+    @Test
+    fun `endpoint validator blocks SSRF metadata, unspecified 0-0-0-0, and link-local addresses`() {
+        val ssrfUrls = listOf(
+            "http://169.254.169.254/latest/meta-data",
+            "https://169.254.169.254/latest/meta-data",
+            "http://0.0.0.0:11434",
+            "https://metadata.google.internal",
+            "http://[::]:11434",
+            "http://[fe80::1]:11434",
+            "http://[::ffff:127.0.0.1]:11434"
+        )
+        ssrfUrls.forEach { url ->
+            val res = EndpointValidator.validateOllamaEndpoint(url)
+            assertFalse("SSRF URL should be rejected: $url", res.isValid)
+        }
+    }
+
+    @Test
+    fun `http transport blocks 302 redirects without forwarding headers`() = runBlocking {
+        val targetHits = AtomicInteger(0)
+        val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
+        server.createContext("/redirect") { ex ->
+            ex.responseHeaders.add("Location", "http://127.0.0.1:${server.address.port}/redirect-target")
+            ex.sendResponseHeaders(302, -1)
+            ex.close()
+        }
+        server.createContext("/redirect-target") { ex ->
+            targetHits.incrementAndGet()
+            val body = """{"response":"leaked"}""".toByteArray()
+            ex.sendResponseHeaders(200, body.size.toLong())
+            ex.responseBody.use { it.write(body) }
+        }
+        server.start()
+        try {
+            val transport = HttpUrlConnectionTransport()
+            val port = server.address.port
+            try {
+                transport.execute(
+                    HttpRequest(
+                        method = "GET",
+                        url = "http://127.0.0.1:$port/redirect",
+                        headers = mapOf("x-goog-api-key" to "secret-test-key")
+                    )
+                )
+                fail("Expected IOException for HTTP 302 redirect")
+            } catch (e: IOException) {
+                assertTrue(e.message.orEmpty().contains("redirect", ignoreCase = true))
+            }
+            assertEquals("Redirect target must never be contacted", 0, targetHits.get())
+        } finally {
+            server.stop(0)
+        }
+    }
+
+    @Test
+    fun `localOnlyPrivacyMode blocks cloud Gemini and remote Ollama endpoints`() = runTest {
+        val ollama = StubAdapter(providerId = AiProviderId.OLLAMA)
+        val gemini = StubAdapter(providerId = AiProviderId.GEMINI)
+        val router = AiProviderRouter(mapOf(AiProviderId.OLLAMA to ollama, AiProviderId.GEMINI to gemini))
+
+        val privacyGeminiFirst = AiProviderConfig(
+            strategy = AiRoutingStrategy.GEMINI_FIRST,
+            fallbackEnabled = true,
+            localOnlyPrivacyMode = true
+        )
+        assertEquals(listOf(AiProviderId.OLLAMA), router.resolveOrder(privacyGeminiFirst))
+
+        val privacyGeminiOnly = AiProviderConfig(
+            strategy = AiRoutingStrategy.GEMINI_ONLY,
+            fallbackEnabled = true,
+            localOnlyPrivacyMode = true
+        )
+        assertTrue(router.resolveOrder(privacyGeminiOnly).isEmpty())
+        try {
+            router.generateText(AiTextRequest("Hello"), privacyGeminiOnly)
+            fail("Expected ConfigurationError when privacy mode blocks GEMINI_ONLY")
+        } catch (e: AiError.ConfigurationError) {
+            assertTrue(e.message.orEmpty().contains("Privacy Mode", ignoreCase = true))
+        }
+        assertEquals(0, gemini.textCalls)
+
+        val realOllama = OllamaAdapter(FakeTransport())
+        try {
+            realOllama.generateText(
+                AiTextRequest("Hi"),
+                AiProviderConfig(
+                    ollamaEndpoint = "https://ollama.example.edu",
+                    localOnlyPrivacyMode = true
+                )
+            )
+            fail("Expected ConfigurationError when privacy mode blocks remote Ollama")
+        } catch (e: AiError.ConfigurationError) {
+            assertTrue(e.message.orEmpty().contains("Privacy Mode", ignoreCase = true))
+        }
+
+        val propagated = com.example.core.SoraSettings(localOnlyPrivacyMode = true).toAiProviderConfig()
+        assertTrue(propagated.localOnlyPrivacyMode)
+    }
 }
